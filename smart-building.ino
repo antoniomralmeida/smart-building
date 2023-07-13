@@ -6,9 +6,10 @@
 #include <Wire.h> // Biblioteca utilizada para fazer a comunicação com o I2C
 #include <LiquidCrystal_I2C.h> // Biblioteca utilizada para fazer a comunicação com o display 20x4 
 #include <EEPROM.h>
-#include <NTPClient.h>
 #include <EthernetUdp.h>
-
+#include <NTPClient.h>
+#include <TimeLib.h>
+#include <avr/wdt.h> // Include the ATmel library
 
 #define col 16 // Serve para definir o numero de colunas do display utilizado
 #define lin  2 // Serve para definir o numero de linhas do display utilizado
@@ -27,21 +28,20 @@ byte MACAddress[8];
 
 // Define NTP Client to get time
 
-EthernetUDP ntpUDP;
-NTPClient timeClient(ntpUDP, "0.pool.ntp.org");
+// A UDP instance to let us send and receive packets over UDP
+EthernetUDP Udp;
+NTPClient timeClient(Udp, "0.pool.ntp.org");
 
 void setup() {
   Serial.begin(9600);
 
-  SetupMAC(MACAddress, false);
+  SetupMAC( false);
   lcd.init(); // Serve para iniciar a comunicação com o display já conectado
   lcd.backlight(); // Serve para ligar a luz do display
   lcd.clear(); // Serve para limpar a tela do display
 
   lcd.setCursor(0,0); // Coloca o cursor do display na coluna 1 e linha 1
   lcd.print("Booting..."); // Comando de saída com a mensagem que deve aparecer na coluna 2 e linha 1.
-  lcd.setCursor(0,1); // Coloca o cursor do display na coluna 1 e linha 1
-  lcd.print(MAC2String(MACAddress));
 
 
   while (!Serial) {
@@ -50,36 +50,30 @@ void setup() {
 
   lcd.setCursor(STATUS_COL,0);
   lcd.print("S01"); //Step 1
-  Serial.println("S01 - Initialize Ethernet with DHCP:");
+  Serial.println("S01 - Initialize Ethernet with DHCP");
+
+  lcd.setCursor(0,1); // Coloca o cursor do display na coluna 1 e linha 1
+  lcd.print(MAC2String());
+
 
   // start the Ethernet connection:
   if (Ethernet.begin(MACAddress) == 0) {
     lcd.setCursor(STATUS_COL,0);
     lcd.print("E01"); //Error 1
-
     Serial.println("E01 - Failed to configure Ethernet using DHCP");
+    delay(1000);
 
     if (Ethernet.hardwareStatus()  == EthernetNoHardware) {
       lcd.setCursor(0,11);
       lcd.print("E02"); //Error 2
-      Serial.println("E02 - Ethernet shield was not found.  Sorry, can't run without hardware. :(");
-
+      Serial.println("E02 - Ethernet shield was not found.");
     } else if (Ethernet.linkStatus() == LinkOFF) {
       lcd.setCursor(STATUS_COL,0);
       lcd.print("E03"); //Error 3
       Serial.println("E03 - Ethernet cable is not connected.");
-
     }
-
-    // no point in carrying on, so do nothing forevermore:
-    while (true) {
-      delay(1);
-    }
-
+    reboot();
   }
-  lcd.setCursor(STATUS_COL,0);
-  lcd.print("S02"); //Step 2
-  Serial.println("S02 - Get IP");
 
   // print your local IP address:
   Serial.print("My IP address(SETUP): ");
@@ -93,9 +87,13 @@ void setup() {
   lcd.setCursor(STATUS_COL,0);
   lcd.print("S03"); //Step 3
   Serial.println("S03 - Setup NTP");
-  setupNTP();
 
-
+  String now = getFormattedNTP();
+ if (now == "") {
+      lcd.print("E04"); //Error 3
+      Serial.println("E04 - NTP Server not found.");
+      reboot();
+ }
   lcd.clear(); // Serve para limpar a tela do display
   lcd.setCursor(0,0); // Coloca o cursor do display na coluna 1 e linha 1
   lcd.print( Ethernet.localIP()); // Comando de saída com a mensagem que deve aparecer na coluna 2 e linha 1.
@@ -103,12 +101,7 @@ void setup() {
 }
 
 void loop() {
- timeClient.update();
-
-  Serial.print("Day: ");
-  Serial.println(timeClient.getDay());  
-
-
+ 
   delay(1000);
 }
 
@@ -150,7 +143,7 @@ void IOTSendTagoIO(String device_token, String variable, String value) {
 
   byte base[6] = { 0xDE, 0xAD, 0x00, 0x00, 0x00, 0x00 };
 
-void SetupMAC(byte newmac[], bool force) {
+void SetupMAC( bool force) {
 
   // Random MAC address stored in EEPROM
   if (EEPROM.read(1) == '#' && force == false) {
@@ -166,30 +159,42 @@ void SetupMAC(byte newmac[], bool force) {
     }
     EEPROM.write(1, '#');
   }
-  for (int i=8;i<8;i++) {
-    newmac[i] = base[i];
+  for (int i=0;i<8;i++) {
+    MACAddress[i] = base[i];
   }
 }
 
-String  MAC2String(byte mac[]) {
+String  MAC2String() {
   char macstr[13];
   String result = "";
-  snprintf(macstr, 18, "%02x%02x%02x%02x%02x%02x", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+  snprintf(macstr, 18, "%02x%02x%02x%02x%02x%02x", MACAddress[0], MACAddress[1], MACAddress[2], MACAddress[3], MACAddress[4], MACAddress[5]);
   for (int i=0;i<13;i++) {
     result += String(macstr[i]);
   }
   return result;
 }
 
-void setupNTP()
-{
-    unsigned int localPort = 8888;
-    //Inicializa o client NTP
-    timeClient.begin(localPort);    
-    //Espera pelo primeiro update online
-    while(!timeClient.update())
-    {
-        Serial.print(".");
-        delay(500);
-    }
+String getFormattedNTP() {
+  timeClient.begin();
+  timeClient.setTimeOffset(-3* 3600);
+  if (timeClient.update()) {
+    unsigned long t = timeClient.getEpochTime();
+    char buff[32];
+    sprintf(buff, "%02d.%02d.%02d %02d:%02d:%02d", day(t), month(t), year(t), hour(t), minute(t), second(t));
+    return String(buff);
+  }
+  return "";
 }
+
+void reboot() {
+    Serial.println("Rebooting...");
+    lcd.clear(); // Serve para limpar a tela do display
+    lcd.setCursor(0,0); // Coloca o cursor do display na coluna 1 e linha 1
+    lcd.print("Rebooting...");
+    delay(1000);
+    wdt_disable(); // Deactivates the function while configuring the time in which it will be reset
+    wdt_enable(WDTO_2S); // We set the timer to restart in 2s
+    while (true) {
+      delay(1);
+    }
+  }
