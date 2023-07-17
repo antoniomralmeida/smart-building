@@ -13,10 +13,35 @@
 
 #define col 16     // Serve para definir o numero de colunas do display utilizado
 #define lin 2      // Serve para definir o numero de linhas do display utilizado
-#define ende 0x27  // Módulo I2C para Display LCD.
+#define I2CADDR 0x27  // Módulo I2C para Display LCD.
 #define LED_ERR 13
 #define STATUS_COL 13
 #define ZERODATE 1367256704
+
+#define I2C 0x01
+#define RS485 0x02
+
+#define DHT22T 0x01
+#define DHT22H 0x02
+
+struct SensorData{
+    byte channelType;
+    byte channelAddr;
+    byte SensorType;
+    byte dataLength;
+};
+
+SensorData sensors[2];
+sensors[0].channelType = I2C;
+sensors[0].channelAddr = 0X08;
+sensors[0].SensorType = DHT22T;
+sensors[0].dataLength = 4;
+
+sensors[1].channelType = I2C;
+sensors[1].channelAddr = 0X08;
+sensors[1].SensorType = DHT22H;
+sensors[1].dataLength = 4;
+
 
 LiquidCrystal_I2C lcd(ende, col, lin);  // Chamada da funcação LiquidCrystal para ser usada com o I2C
 ThreeWire myWire(4, 5, 2);              //OBJETO DO TIPO ThreeWire
@@ -157,6 +182,7 @@ void loop() {
       char buff[32];
       sprintf(buff, "%02d.%02d.%02d %02d:%02d:%02d", day(rtc), month(rtc), year(rtc), hour(rtc), minute(rtc), second(rtc));
       Serial.println(buff);
+      ProcessChannelRead();
     }
   }
   oneminute = (oneminute + 1) % 60;
@@ -164,7 +190,16 @@ void loop() {
   delay(1000);
 }
 
-
+void ProcessChannelRead() {
+  for (int i =0;i<lenght(sensors); i++) {
+    if sensors[i].channelType == I2C {
+      Wire.Begin(sensors[i].channelAddr);
+      Wire.Write(sensors[i].SensorType);
+      Wire.endTransmission();
+      delay(100);
+    }
+  }
+}
 
 unsigned long lastConnectionTime = 0;  // last time you connected to the server, in milliseconds
 

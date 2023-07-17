@@ -1,40 +1,56 @@
-/* How to use the DHT-22 sensor with Arduino uno
-   Temperature and humidity sensor
-*/
+
 
 //Libraries
 #include <DHT.h>;
+#include "Wire.h"
 
 //Constants
-#define DHTPIN 7     // what pin we're connected to
-#define DHTTYPE DHT22   // DHT 22  (AM2302)
-DHT dht(DHTPIN, DHTTYPE); //// Initialize DHT sensor for normal 16mhz Arduino
+#define DHTPIN 7           // what pin we're connected to
+#define DHTTYPE DHT22      // DHT 22  (AM2302)
+DHT dht(DHTPIN, DHTTYPE);  //// Initialize DHT sensor for normal 16mhz Arduino
+
+// endereco do modulo slave que pode ser um valor de 0 a 255
+#define myAdress 0x08
+#define DHT22T 0x01
+#define DHT22H 0x02
+
+byte register_address;
 
 
-//Variables
-int chk;
-float hum;  //Stores humidity value
-float temp; //Stores temperature value
 
-void setup()
-{
+
+void setup() {
   Serial.begin(9600);
   dht.begin();
+  // ingressa ao barramento I2C com o endereço definido no myAdress (0x08)
+  Wire.begin(myAdress);
+  //Registra um evento para ser chamado quando chegar algum dado via I2C
+  Wire.onReceive(receiveEvent);
+  Wire.onRequest(requestEvent);
 }
 
-void loop()
-{
-    delay(2000);
-    //Read data and store it to variables hum and temp
-    hum = dht.readHumidity();
-    temp= dht.readTemperature();
-    //Print temp and humidity values to serial monitor
-    Serial.print("Humidity: ");
-    Serial.print(hum);
-    Serial.print(" %, Temp: ");
-    Serial.print(temp);
-    Serial.println(" Celsius");
-    delay(2000); //Delay 2 sec.
+
+void receiveEvent(int howMany) {
+  // verifica se existem dados para serem lidos no barramento I2C
+  if (Wire.available()) {
+    // le o byte recebido
+    if (howMany > 0)  // for safety, check if some data was received.
+    {
+      register_address = Wire.read();
+    }
+  }
 }
 
-   
+void requestEvent() {
+  if (register_address == DHT22T) {
+    float data = dht.readTemperature();
+    Wire.write((byte *)&data, 4);
+  }
+  if (register_address == DHT22H) {
+    float data = dht.readHumidity();
+    Wire.write((byte *)&data, 4);
+  }
+}
+
+void loop() {
+}
