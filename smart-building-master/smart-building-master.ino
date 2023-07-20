@@ -9,7 +9,7 @@
 #include <SPI.h>
 #include <ThreeWire.h>  //RTC
 #include <RtcDS1302.h>  //RTC
-#include <Wire.h>               // Biblioteca utilizada para fazer a comunicação com o I2C
+#include <Wire.h>       // Biblioteca utilizada para fazer a comunicação com o I2C
 
 #define col 16        // Serve para definir o numero de colunas do display utilizado
 #define lin 2         // Serve para definir o numero de linhas do display utilizado
@@ -24,6 +24,9 @@
 #define DHT22T 0x01
 #define DHT22H 0x02
 
+#define sizeOfData 4
+
+
 typedef struct
 {
   byte channelType;
@@ -35,8 +38,8 @@ typedef struct
 SensorData sensors[2];
 
 LiquidCrystal_I2C lcd(LCDADDR, col, lin);  // Chamada da funcação LiquidCrystal para ser usada com o I2C
-ThreeWire myWire(4, 5, 2);              //OBJETO DO TIPO ThreeWire
-RtcDS1302<ThreeWire> Rtc(myWire);       //OBJETO DO TIPO RtcDS1302
+ThreeWire myWire(4, 5, 2);                 //OBJETO DO TIPO ThreeWire
+RtcDS1302<ThreeWire> Rtc(myWire);          //OBJETO DO TIPO RtcDS1302
 
 EthernetClient client;
 byte MACAddress[8];
@@ -130,18 +133,15 @@ void setup() {
   unsigned long rtc = Rtc.GetDateTime().Epoch32Time();
   Serial.println("RTC: " + printDate(rtc));
 
-  if (!orderDate(rtc).equals( orderDate(ntp))) {                                                             //SE A INFORMAÇÃO REGISTRADA FOR MENOR QUE A INFORMAÇÃO COMPILADA, FAZ
+  if (!orderDate(rtc).equals(orderDate(ntp))) {                                                       //SE A INFORMAÇÃO REGISTRADA FOR MENOR QUE A INFORMAÇÃO COMPILADA, FAZ
     Serial.println("As informações atuais do RTC estão desatualizadas. Atualizando informações...");  //IMPRIME O TEXTO NO MONITOR SERIAL
     char date[32];
-    sprintf(date, "%s/%02d/%02d",  monthShortStr(month(ntp)), day(ntp), year(ntp) );
+    sprintf(date, "%s/%02d/%02d", monthShortStr(month(ntp)), day(ntp), year(ntp));
     char time[32];
-    sprintf(time, "%02d:%02d:%02d",  hour(ntp), minute(ntp), second(ntp));
-
-    Serial.println(__DATE__);
-    Serial.println( __TIME__);
+    sprintf(time, "%02d:%02d:%02d", hour(ntp), minute(ntp), second(ntp));
     Rtc.SetDateTime(RtcDateTime(date, time));  //INFORMAÇÕES COMPILADAS SUBSTITUEM AS INFORMAÇÕES ANTERIORES
-    Serial.println();      //QUEBRA DE LINHA NA SERIAL
-  } else {                 //SENÃO, SE A INFORMAÇÃO REGISTRADA FOR MAIOR QUE A INFORMAÇÃO COMPILADA, FAZ
+    Serial.println();                          //QUEBRA DE LINHA NA SERIAL
+  } else {                                     //SENÃO, SE A INFORMAÇÃO REGISTRADA FOR MAIOR QUE A INFORMAÇÃO COMPILADA, FAZ
     Serial.println("As informações atuais do RTC estão atualizadas.");
     Serial.println();  //QUEBRA DE LINHA NA SERIAL
   }
@@ -165,6 +165,7 @@ void setup() {
   lcd.setCursor(0, 0);            // Coloca o cursor do display na coluna 1 e linha 1
   lcd.print(Ethernet.localIP());  // Comando de saída com a mensagem que deve aparecer na coluna 2 e linha 1.
   Serial.println("OK.");
+  Wire.begin();
 }
 
 int oneminute = 0;
@@ -192,14 +193,24 @@ void ProcessChannelRead() {
   Serial.println("ProcessChannelRead...");
   for (int i = 0; i < sizeof(sensors); i++) {
     if (sensors[i].channelType == I2C) {
-      Serial.print(sensors[i].channelAddr);
-      Serial.println(sensors[i].SensorType);
-        String message = "valor = " + sensors[i].SensorType;
-        Wire.begin(sensors[i].channelAddr);
-        Serial.println(Wire.write(message.c_str()));
-        Serial.println(Wire.endTransmission());
+      Wire.beginTransmission(sensors[i].channelAddr);
+      Wire.write(sensors[i].SensorType);
+      Wire.endTransmission();
+      delay(100);
+      Wire.requestFrom((int)sensors[i].channelAddr, sizeOfData);
+      while (Wire.available() == 0) {
         delay(100);
       }
+      if (Wire.available() != 0) {
+        Serial.println("Receiving from Slave");
+        byte buff[sizeOfData];
+        for (int i = 0;i<sizeOfData;i++) {
+          buff[i] = Wire.read();
+        }
+        float data = *((float *)&buff[0]);
+        Serial.println(data, 10);
+      }
+    }
   }
 }
 
@@ -288,7 +299,7 @@ String orderDate(unsigned long t) {
 
 String printDate(unsigned long t) {
   char buff[32];
-  sprintf(buff, "%02d.%02d.%02d %02d:%02d:%02d", day(t), month(t), year(t), hour(t), minute(t), second(t)); 
+  sprintf(buff, "%02d.%02d.%02d %02d:%02d:%02d", day(t), month(t), year(t), hour(t), minute(t), second(t));
   return String(buff);
 }
 

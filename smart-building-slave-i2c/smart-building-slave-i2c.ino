@@ -15,8 +15,6 @@ DHT dht(DHTPIN, DHTTYPE);  //// Initialize DHT sensor for normal 16mhz Arduino
 #define DHT22T 0x01
 #define DHT22H 0x02
 
-
-char buff[100];
 float data;
 
 void setup() {
