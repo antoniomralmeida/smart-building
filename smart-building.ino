@@ -1,6 +1,5 @@
 #include <Ethernet.h>
 #include <EthernetClient.h>
-#include <Wire.h>               // Biblioteca utilizada para fazer a comunicação com o I2C
 #include <LiquidCrystal_I2C.h>  // Biblioteca utilizada para fazer a comunicação com o display 20x4
 #include <EEPROM.h>
 #include <EthernetUdp.h>
@@ -10,6 +9,7 @@
 #include <SPI.h>
 #include <ThreeWire.h>  //RTC
 #include <RtcDS1302.h>  //RTC
+#include <Wire.h>               // Biblioteca utilizada para fazer a comunicação com o I2C
 
 #define col 16        // Serve para definir o numero de colunas do display utilizado
 #define lin 2         // Serve para definir o numero de linhas do display utilizado
@@ -44,6 +44,7 @@ byte MACAddress[8];
 // A UDP instance to let us send and receive packets over UDP
 EthernetUDP Udp;
 NTPClient timeClient(Udp, "0.pool.ntp.org");
+
 
 void setup() {
   Serial.begin(9600);
@@ -102,7 +103,8 @@ void setup() {
   Serial.println("S03 - Setup NTP");
 
   unsigned long ntp = getNTP();
-  if (ntp == "") {
+  Serial.println(ntp);
+  if (ntp == 0) {
     lcd.print("E04");  //Error 3
     Serial.println("E04 - NTP Server not found.");
     reboot();
@@ -130,8 +132,14 @@ void setup() {
 
   if (!orderDate(rtc).equals( orderDate(ntp))) {                                                             //SE A INFORMAÇÃO REGISTRADA FOR MENOR QUE A INFORMAÇÃO COMPILADA, FAZ
     Serial.println("As informações atuais do RTC estão desatualizadas. Atualizando informações...");  //IMPRIME O TEXTO NO MONITOR SERIAL
-    //RtcDateTime new = RtcDateTime(ntp);
-    Rtc.SetDateTime(RtcDateTime (ntp));  //INFORMAÇÕES COMPILADAS SUBSTITUEM AS INFORMAÇÕES ANTERIORES
+    char date[32];
+    sprintf(date, "%s/%02d/%02d",  monthShortStr(month(ntp)), day(ntp), year(ntp) );
+    char time[32];
+    sprintf(time, "%02d:%02d:%02d",  hour(ntp), minute(ntp), second(ntp));
+
+    Serial.println(__DATE__);
+    Serial.println( __TIME__);
+    Rtc.SetDateTime(RtcDateTime(date, time));  //INFORMAÇÕES COMPILADAS SUBSTITUEM AS INFORMAÇÕES ANTERIORES
     Serial.println();      //QUEBRA DE LINHA NA SERIAL
   } else {                 //SENÃO, SE A INFORMAÇÃO REGISTRADA FOR MAIOR QUE A INFORMAÇÃO COMPILADA, FAZ
     Serial.println("As informações atuais do RTC estão atualizadas.");
@@ -177,16 +185,19 @@ void loop() {
     }
   }
   oneminute = (oneminute + 1) % 60;
-  Serial.println(oneminute);
   delay(1000);
 }
 
 void ProcessChannelRead() {
+  Serial.println("ProcessChannelRead...");
   for (int i = 0; i < sizeof(sensors); i++) {
     if (sensors[i].channelType == I2C) {
+      Serial.print(sensors[i].channelAddr);
+      Serial.println(sensors[i].SensorType);
+        String message = "valor = " + sensors[i].SensorType;
         Wire.begin(sensors[i].channelAddr);
-        Wire.write(sensors[i].SensorType);
-        Wire.endTransmission();
+        Serial.println(Wire.write(message.c_str()));
+        Serial.println(Wire.endTransmission());
         delay(100);
       }
   }
@@ -262,7 +273,7 @@ unsigned long getNTP() {
   timeClient.setTimeOffset(-3 * 3600);
   if (timeClient.update()) {
     unsigned long t = timeClient.getEpochTime();
-    char buff[32];
+    //char buff[32];
     //sprintf(buff, "%02d.%02d.%02d %02d:%02d:%02d", month(t), day(t), year(t), hour(t), minute(t), second(t));
     return t;
   }

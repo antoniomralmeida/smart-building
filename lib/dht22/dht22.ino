@@ -26,22 +26,36 @@ void setup() {
   Wire.begin(myAdress);
   //Registra um evento para ser chamado quando chegar algum dado via I2C
   Wire.onReceive(receiveEvent);
-  Wire.onRequest(requestEvent);
+  //Wire.onRequest(requestEvent);
+}
+
+// vide "void setup()"
+void receiveEvent(int howMany) {
+  // verifica se existem dados para serem lidos no barramento I2C
+  if (Wire.available()) {
+    // le o byte recebido
+    char received = Wire.read();
+       Serial.println(received);
+   
+  }
 }
 
 
-void receiveEvent(int howMany) {
+void receiveEvent2(int howMany) {
+  Serial.println("receiveEvent...");
   // verifica se existem dados para serem lidos no barramento I2C
   if (Wire.available()) {
     // le o byte recebido
     if (howMany > 0)  // for safety, check if some data was received.
     {
       register_address = Wire.read();
+      Serial.println(register_address);
     }
   }
 }
 
 void requestEvent() {
+    Serial.println("requestEvent...");
   if (register_address == DHT22T) {
     float data = dht.readTemperature();
     Wire.write((byte *)&data, 4);
