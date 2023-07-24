@@ -3,39 +3,47 @@
 //Libraries
 #include <DHT.h>;
 #include "Wire.h"
+#include "smart-building.h"
 
-//Constants
-#define DHTPIN 7           // what pin we're connected to
-#define DHTTYPE DHT22      // DHT 22  (AM2302)
-DHT dht(DHTPIN, DHTTYPE);  //// Initialize DHT sensor for normal 16mhz Arduino
 
 // endereco do modulo slave que pode ser um valor de 0 a 255
 #define myAdress 0x08
 
-#define DHT22T 0x01
-#define DHT22H 0x02
 
 float data;
 
 void setup() {
   Serial.begin(9600);
-  dht.begin();
+
   // ingressa ao barramento I2C com o endereço definido no myAdress (0x08)
   Wire.begin(myAdress);
   //Registra um evento para ser chamado quando chegar algum dado via I2C
   Wire.onReceive(receiveEvent);
   Wire.onRequest(requestEvent);
+  pinMode(LED_BUILTIN, OUTPUT);
 }
 
 void receiveEvent(int howMany) {
   // verifica se existem dados para serem lidos no barramento I2C
   if (Wire.available()) {
     for (int i = 0; i < howMany; i++) {
-      byte register_address = Wire.read();
-      if (register_address == DHT22T) {
+      byte register_address = Wire.read()
+      if (register_address == DHT22T || register_address == DHT11T) {
+        u_int8t type = DHT22;
+        if (register_address == DHT11T) {
+          type = DHT11;
+        }
+        DHT dht(SensorPIN1, type);  //// Initialize DHT sensor for normal 16mhz Arduino
+        dht.begin();
         data = dht.readTemperature();
         Serial.print("DT22T: ");
-      } else if (register_address == DHT22H) {
+      } else if (register_address == DHT22H || register_address == DHT11H) {
+        u_int8t type = DHT22;
+        if (register_address == DHT11T) {
+          type = DHT11;
+        }
+        DHT dht(SensorPIN1, type);  //// Initialize DHT sensor for normal 16mhz Arduino
+        dht.begin();
         data = dht.readHumidity();
         Serial.print("DT22H: ");
       } else {
@@ -44,15 +52,17 @@ void receiveEvent(int howMany) {
       }
       Serial.print(data, 10);
       Serial.println();
-      delay(100);
+      digitalWrite(LED_BUILTIN, HIGH);  // turn the LED on (HIGH is the voltage level)
+      delay(100);                      // wait for a second
+      digitalWrite(LED_BUILTIN, LOW);
     }
   }
 }
 
 void requestEvent() {
-    Wire.write((byte *)&data, 4);
+  Wire.write((byte *)&data, 4);
 }
-  
+
 
 void loop() {
 }

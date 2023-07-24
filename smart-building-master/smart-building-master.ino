@@ -10,6 +10,7 @@
 #include <ThreeWire.h>  //RTC
 #include <RtcDS1302.h>  //RTC
 #include <Wire.h>       // Biblioteca utilizada para fazer a comunicação com o I2C
+#include <smart-building.h>
 
 #define col 16        // Serve para definir o numero de colunas do display utilizado
 #define lin 2         // Serve para definir o numero de linhas do display utilizado
@@ -17,23 +18,6 @@
 #define LED_ERR 13
 #define STATUS_COL 13
 #define ZERODATE 1367256704
-
-#define I2C 0x01
-#define RS485 0x02
-
-#define DHT22T 0x01
-#define DHT22H 0x02
-
-#define sizeOfData 4
-
-
-typedef struct
-{
-  byte channelType;
-  byte channelAddr;
-  byte SensorType;
-  byte dataLength;
-} SensorData;
 
 SensorData sensors[2];
 
@@ -197,14 +181,14 @@ void ProcessChannelRead() {
       Wire.write(sensors[i].SensorType);
       Wire.endTransmission();
       delay(100);
-      Wire.requestFrom((int)sensors[i].channelAddr, sizeOfData);
+      Wire.requestFrom((int)sensors[i].channelAddr, sensors[i].dataLength);
       while (Wire.available() == 0) {
         delay(100);
       }
       if (Wire.available() != 0) {
         Serial.println("Receiving from Slave");
-        byte buff[sizeOfData];
-        for (int i = 0;i<sizeOfData;i++) {
+        byte buff[sensors[i].dataLength];
+        for (int i = 0;i<sensors[i].dataLength;i++) {
           buff[i] = Wire.read();
         }
         float data = *((float *)&buff[0]);
