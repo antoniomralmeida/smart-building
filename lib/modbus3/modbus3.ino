@@ -20,7 +20,7 @@
 #define LED 9
 
 // The total amount of available memory on the master to store data
-#define TOTAL_NO_OF_REGISTERS 1
+#define TOTAL_NO_OF_REGISTERS 2
 
 // This is the easiest way to create new packets
 // Add as many as you want. TOTAL_NO_OF_PACKETS
@@ -42,10 +42,9 @@ void setup()
 {
   // Initialize each packet
   modbus_construct(&packets[PACKET1], 1, READ_HOLDING_REGISTERS, 0, 1, 0);
-  modbus_construct(&packets[PACKET2], 1, PRESET_MULTIPLE_REGISTERS, 1, 1, 0);
   
   // Initialize the Modbus Finite State Machine
-  modbus_configure(&Serial, baud, SERIAL_8N2, timeout, polling, retry_count, TxEnablePin, packets, TOTAL_NO_OF_PACKETS, regs);
+  modbus_configure(&Serial2, baud, SERIAL_8N1, timeout, polling, retry_count, TxEnablePin, packets, TOTAL_NO_OF_PACKETS, regs);
   
   pinMode(LED, OUTPUT);
   Serial.begin(9600);
@@ -54,9 +53,8 @@ void setup()
 void loop()
 {
   modbus_update();
-  
-  regs[0] = analogRead(0); // update data to be written to arduino slave
-  
-  analogWrite(LED, regs[0]>>2); // constrain adc value from the arduino slave to 255
+  Serial.print("REG[0]: ");
   Serial.println(regs[0]);
+  delay(1000);
+
 }

@@ -11,6 +11,7 @@
 #include <RtcDS1302.h>  //RTC
 #include <Wire.h>       // Biblioteca utilizada para fazer a comunicação com o I2C
 #include <smart-building.h>
+#include <SD.h>
 
 #define col 16        // Serve para definir o numero de colunas do display utilizado
 #define lin 2         // Serve para definir o numero de linhas do display utilizado
@@ -18,8 +19,11 @@
 #define LED_ERR 13
 #define STATUS_COL 13
 #define ZERODATE 1367256704
+#define SDCARD_SS_PIN 4
+#define MAX_SENSORS 128
 
-SensorData sensors[2];
+sensorData sensors[MAX_SENSORS];
+byte nSensors = 0;
 
 LiquidCrystal_I2C lcd(LCDADDR, col, lin);  // Chamada da funcação LiquidCrystal para ser usada com o I2C
 ThreeWire myWire(4, 5, 2);                 //OBJETO DO TIPO ThreeWire
@@ -32,6 +36,7 @@ byte MACAddress[8];
 EthernetUDP Udp;
 NTPClient timeClient(Udp, "0.pool.ntp.org");
 
+File myFile;
 
 void setup() {
   Serial.begin(9600);
@@ -92,6 +97,7 @@ void setup() {
   unsigned long ntp = getNTP();
   Serial.println(ntp);
   if (ntp == 0) {
+    lcd.setCursor(STATUS_COL, 0);
     lcd.print("E04");  //Error 3
     Serial.println("E04 - NTP Server not found.");
     reboot();
@@ -132,16 +138,52 @@ void setup() {
 
   lcd.setCursor(STATUS_COL, 0);
   lcd.print("S05");  //Step 5
-  Serial.println("S05 - Read Data Setup");
+  Serial.println("S05 - SD Card setup");
+
+
+  if (!SD.begin(SDCARD_SS_PIN)) {
+    lcd.setCursor(STATUS_COL, 0);
+    lcd.print("E05");  //Error 5
+    Serial.println("E05 - SD card initialization failed!");
+    reboot();
+  }
+  Serial.println("SD card initialization done.");
+
+
+
+  lcd.setCursor(STATUS_COL, 0);
+  lcd.print("S06");  //Step 6
+  Serial.println("S06 - Read Data Setup");
+
+
+  myFile = SD.open("SETUP.CSV");
+  if (!myFile) {
+    lcd.setCursor(STATUS_COL, 0);
+    lcd.print("E06");  //Error 6
+    Serial.println("E06 - SETUP.CSV not found!");
+    reboot();
+  }
+
+  char inputChar = myFile.read();  //get one byte from file
+  String data = "";
+  while (inputChar != 'eof') {
+    //(inputChar != '\n')
+
+    data += inputChar;
+    inputChar = myFile.read();
+  }
+
+  Serial.println(data);
+
 
   sensors[0].channelType = I2C;
   sensors[0].channelAddr = 0X08;
-  sensors[0].SensorType = DHT22T;
+  sensors[0].sensorType = DHT22T;
   sensors[0].dataLength = 4;
 
   sensors[1].channelType = I2C;
   sensors[1].channelAddr = 0X08;
-  sensors[1].SensorType = DHT22H;
+  sensors[1].sensorType = DHT22H;
   sensors[1].dataLength = 4;
 
 
@@ -178,7 +220,7 @@ void ProcessChannelRead() {
   for (int i = 0; i < sizeof(sensors); i++) {
     if (sensors[i].channelType == I2C) {
       Wire.beginTransmission(sensors[i].channelAddr);
-      Wire.write(sensors[i].SensorType);
+      Wire.write(sensors[i].sensorType);
       Wire.endTransmission();
       delay(100);
       Wire.requestFrom((int)sensors[i].channelAddr, sensors[i].dataLength);
@@ -188,7 +230,7 @@ void ProcessChannelRead() {
       if (Wire.available() != 0) {
         Serial.println("Receiving from Slave");
         byte buff[sensors[i].dataLength];
-        for (int i = 0;i<sensors[i].dataLength;i++) {
+        for (int i = 0; i < sensors[i].dataLength; i++) {
           buff[i] = Wire.read();
         }
         float data = *((float *)&buff[0]);
