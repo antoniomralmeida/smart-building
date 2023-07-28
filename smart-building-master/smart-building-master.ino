@@ -95,6 +95,7 @@ void setup() {
   Serial.println("S03 - Setup NTP");
 
   unsigned long ntp = getNTP();
+  //TODO: BUG GET DATE NTP
   Serial.println(ntp);
   if (ntp == 0) {
     lcd.setCursor(STATUS_COL, 0);
@@ -166,32 +167,63 @@ void setup() {
 
   char inputChar = myFile.read();  //get one byte from file
   String data = "";
-  while (inputChar != 'eof') {
-    //(inputChar != '\n')
-
-    data += inputChar;
-    inputChar = myFile.read();
+  while (myFile.available()) {
+    byte column = 0;
+    byte pt = 0;
+    while (myFile.available()) {
+      if (inputChar == '\n' || inputChar == ',') {
+        switch (column) {
+          case 0:
+            {
+              sensors[nSensors].channelType = findBusTypeStr(data);
+              break;
+            }
+          case 1:
+            {
+              sensors[nSensors].channelAddr = data.toInt();
+              break;
+            }
+          case 2:
+            {
+              sensors[nSensors].sensorType = findSensorTypeStr(data);
+              break;
+            }
+          case 3:
+            {
+              sensors[nSensors].dataLength = data.toInt();
+              break;
+            }
+        }
+        column++;
+        data = "";
+      } else {
+        data += inputChar;
+      }
+      bool breakLine = (inputChar == '\n');
+      if (myFile.available()) {
+        inputChar = myFile.read();
+      }
+      if (breakLine) {
+        break;
+      }
+    }
+    nSensors++;
   }
+  myFile.close();
 
-  Serial.println(data);
-
-
-  sensors[0].channelType = I2C;
-  sensors[0].channelAddr = 0X08;
-  sensors[0].sensorType = DHT22T;
-  sensors[0].dataLength = 4;
-
-  sensors[1].channelType = I2C;
-  sensors[1].channelAddr = 0X08;
-  sensors[1].sensorType = DHT22H;
-  sensors[1].dataLength = 4;
-
+  Serial.println(nSensors);
 
   lcd.clear();                    // Serve para limpar a tela do display
   lcd.setCursor(0, 0);            // Coloca o cursor do display na coluna 1 e linha 1
   lcd.print(Ethernet.localIP());  // Comando de saída com a mensagem que deve aparecer na coluna 2 e linha 1.
   Serial.println("OK.");
   Wire.begin();
+
+
+  unsigned long rtc2 = Rtc.GetDateTime().Epoch32Time();
+  char buff[32];
+  sprintf(buff, "%02d.%02d.%02d %02d:%02d:%02d", day(rtc2), month(rtc2), year(rtc2), hour(rtc2), minute(rtc2), second(rtc2));
+  Serial.println(buff);
 }
 
 int oneminute = 0;
@@ -217,7 +249,7 @@ void loop() {
 
 void ProcessChannelRead() {
   Serial.println("ProcessChannelRead...");
-  for (int i = 0; i < sizeof(sensors); i++) {
+  for (int i = 0; i < nSensors; i++) {
     if (sensors[i].channelType == I2C) {
       Wire.beginTransmission(sensors[i].channelAddr);
       Wire.write(sensors[i].sensorType);
