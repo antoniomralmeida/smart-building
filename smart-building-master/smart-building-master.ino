@@ -3,8 +3,7 @@
 #include <LiquidCrystal_I2C.h>  // Biblioteca utilizada para fazer a comunicação com o display 20x4
 #include <EEPROM.h>
 #include <EthernetUdp.h>
-#include <NTPClient.h>
-#include <TimeLib.h>
+#include <NtpClientLib.h>
 #include <avr/wdt.h>  // Include the ATmel library
 #include <SPI.h>
 #include <ThreeWire.h>  //RTC
@@ -12,6 +11,7 @@
 #include <Wire.h>       // Biblioteca utilizada para fazer a comunicação com o I2C
 #include <smart-building.h>
 #include <SD.h>
+#include <TimeLib.h>
 
 #define col 16        // Serve para definir o numero de colunas do display utilizado
 #define lin 2         // Serve para definir o numero de linhas do display utilizado
@@ -31,10 +31,6 @@ RtcDS1302<ThreeWire> Rtc(myWire);          //OBJETO DO TIPO RtcDS1302
 
 EthernetClient client;
 byte MACAddress[8];
-
-// A UDP instance to let us send and receive packets over UDP
-EthernetUDP Udp;
-NTPClient timeClient(Udp, "0.pool.ntp.org");
 
 File myFile;
 
@@ -94,16 +90,14 @@ void setup() {
   lcd.print("S03");  //Step 3
   Serial.println("S03 - Setup NTP");
 
-  unsigned long ntp = getNTP();
-  //TODO: BUG GET DATE NTP
-  Serial.println(ntp);
-  if (ntp == 0) {
+	if (!NTP.begin ("pool.ntp.org",-3)){
     lcd.setCursor(STATUS_COL, 0);
     lcd.print("E04");  //Error 3
     Serial.println("E04 - NTP Server not found.");
     reboot();
   }
-  Serial.println("NTP: " + printDate(ntp));
+  Serial.println("NTP: " + NTP.getDateStr());
+  unsigned long ntp = NTP.getLongInterval();
 
   lcd.setCursor(STATUS_COL, 0);
   lcd.print("S04");  //Step 4
@@ -337,17 +331,8 @@ String MAC2String() {
   return result;
 }
 
-unsigned long getNTP() {
-  timeClient.begin();
-  timeClient.setTimeOffset(-3 * 3600);
-  if (timeClient.update()) {
-    unsigned long t = timeClient.getEpochTime();
-    //char buff[32];
-    //sprintf(buff, "%02d.%02d.%02d %02d:%02d:%02d", month(t), day(t), year(t), hour(t), minute(t), second(t));
-    return t;
-  }
-  return 0;
-}
+
+
 
 String orderDate(unsigned long t) {
   char buff[32];

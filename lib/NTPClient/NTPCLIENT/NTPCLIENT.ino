@@ -1,20 +1,15 @@
 
-
-#include <SPI.h>
+#include <NTPClient.h>
 #include <Ethernet.h>
 #include <EthernetUdp.h>
-#include <NTPClient.h>
 #include <TimeLib.h>
-
-// Enter a MAC address for your controller below.
-// Newer Ethernet shields have a MAC address printed on a sticker on the shield
 byte mac[] = {
   0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED
 };
 
 // A UDP instance to let us send and receive packets over UDP
-EthernetUDP Udp;
-NTPClient timeClient(Udp, "0.pool.ntp.org");
+EthernetUDP ntpUDP;
+NTPClient timeClient(ntpUDP,"pool.ntp.org", -3 * 3600, 60000);
 
 void setup() {
   // Open serial communications and wait for port to open:
@@ -22,7 +17,7 @@ void setup() {
   while (!Serial) {
     ; // wait for serial port to connect. Needed for native USB port only
   }
-
+  Serial.println("Get IP");
   // start Ethernet and UDP
   if (Ethernet.begin(mac) == 0) {
     Serial.println("Failed to configure Ethernet using DHCP");
@@ -37,15 +32,22 @@ void setup() {
       delay(1);
     }
   }
+  Serial.println("Setup NTP");
+
   timeClient.begin();
-  timeClient.setTimeOffset(-3* 3600);
+  //timeClient.setTimeOffset(-3 * 60 * 60);
+  while (!timeClient.update()) {
+    timeClient.forceUpdate();
+  }
+  
+  unsigned long t = timeClient.getEpochTime();
+  Serial.println(timeClient.getFormattedTime());
+
+  char buff[32];
+  sprintf(buff, "%02d.%02d.%02d %02d:%02d:%02d", year(t), month(t), day(t), hour(t), minute(t), second(t));
+  Serial.println(String(buff));
+  
 }
 
-void loop() {
-  timeClient.update();
-  unsigned long t = timeClient.getEpochTime();
-  char buff[32];
-  sprintf(buff, "%02d.%02d.%02d %02d:%02d:%02d", day(t), month(t), year(t), hour(t), minute(t), second(t));
-  Serial.println(buff);
-  delay(500);
-}
+void loop() {}
+ 
