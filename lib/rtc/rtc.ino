@@ -6,7 +6,7 @@ ThreeWire myWire(4, 5, 2); //OBJETO DO TIPO ThreeWire
 RtcDS1302<ThreeWire> Rtc(myWire); //OBJETO DO TIPO RtcDS1302
 
 void setup () {
-    Serial.begin(9600); //INICIALIZA A SERIAL
+    Serial.begin(115200); //INICIALIZA A SERIAL
     Rtc.Begin(); //INICIALIZA O RTC
     Serial.print("Compilado em: "); //IMPRIME O TEXTO NO MONITOR SERIAL
     RtcDateTime compiled = RtcDateTime(__DATE__, __TIME__); //VARIÁVEL RECEBE DATA E HORA DE COMPILAÇÃO
@@ -26,24 +26,17 @@ void setup () {
     }
     
     RtcDateTime now = Rtc.GetDateTime(); //VARIÁVEL RECEBE INFORMAÇÕES
-    Serial.println(compiled);
-    Serial.println(now);
-    Serial.println(now < compiled);
-    int comp = compareDateTime(compiled , now);
+    Serial.println(compiled.Ntp64Time());
+    Serial.println(now.Unix64Time());
+    Serial.println(now.Unix64Time() < compiled.Unix64Time());
+    
 
-    if (comp == 1) { //SE A INFORMAÇÃO REGISTRADA FOR MENOR QUE A INFORMAÇÃO COMPILADA, FAZ
+    if (now.Unix64Time() != compiled.Unix64Time()) { //SE A INFORMAÇÃO REGISTRADA FOR MENOR QUE A INFORMAÇÃO COMPILADA, FAZ
         Serial.println("As informações atuais do RTC estão desatualizadas. Atualizando informações..."); //IMPRIME O TEXTO NO MONITOR SERIAL
         Rtc.SetDateTime(compiled); //INFORMAÇÕES COMPILADAS SUBSTITUEM AS INFORMAÇÕES ANTERIORES
         Serial.println(); //QUEBRA DE LINHA NA SERIAL
     }
-    else if (comp == -1) { //SENÃO, SE A INFORMAÇÃO REGISTRADA FOR MAIOR QUE A INFORMAÇÃO COMPILADA, FAZ
-        Serial.println("As informações atuais do RTC são mais recentes que as de compilação. Isso é o esperado."); //IMPRIME O TEXTO NO MONITOR SERIAL
-        Serial.println(); //QUEBRA DE LINHA NA SERIAL
-    }
-    else  { //SENÃO, SE A INFORMAÇÃO REGISTRADA FOR IGUAL A INFORMAÇÃO COMPILADA, FAZ
-        Serial.println("As informações atuais do RTC são iguais as de compilação! Não é o esperado, mas está tudo OK."); //IMPRIME O TEXTO NO MONITOR SERIAL
-        Serial.println(); //QUEBRA DE LINHA NA SERIAL
-    }
+
 }
 
 void loop () {
@@ -79,16 +72,4 @@ void printDateTime(const RtcDateTime& dt){
     Serial.println(); //QUEBRA DE LINHA NA SERIAL
 }
 
-int compareDateTime(const RtcDateTime& dt1, const RtcDateTime& dt2){
 
-  long udt1 = dt1.Year() * 365 * 30 * 24 * 60 * 60 + dt1.Month() * 30 * 24 * 60 * 60  + dt1.Day() * 24 * 60 * 60  + dt1.Hour() * 60 * 60 + dt1.Minute() * 60 + dt1.Second();
-  long udt2 = dt2.Year() * 365 * 30 * 24 * 60 * 60 + dt2.Month() * 30 * 24 * 60 * 60  + dt2.Day() * 24 * 60 * 60  + dt2.Hour() * 60 * 60 + dt2.Minute() * 60 + dt2.Second();
-
-  if (udt1 > udt2) {
-    return 1;
-  } else if (udt1 < udt2) {
-    return -1;
-  }    else {
-    return 0;
-  }
-}
