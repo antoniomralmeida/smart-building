@@ -1,9 +1,12 @@
+#include <TimeLib.h>
+#include <EthernetClient.h>
 
-#define SensorPIN1 7
-#define SensorPIN2 8
-#define SensorPINA3 A3
-#define SensorPINA4 A4
-
+#define RXPIN = 10;
+#define RXPIN = 11;
+#define SensorPIN1 12
+#define SensorPIN2 13
+#define SensorPIN3_A A2
+#define SensorPIN4_A A3
 
 enum busType
 {
@@ -53,3 +56,6 @@ byte findSensorTypeStr(String type) {
     return -1;
   }
 }
+
+
+

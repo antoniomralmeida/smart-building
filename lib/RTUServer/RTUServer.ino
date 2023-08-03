@@ -12,13 +12,14 @@
 
 #include <ModbusRtuMaster.h>
 
-#define SLAVE_ADDR 1
-#define REGISTER 0x0002
+#define SLAVE_ADDR  1
+#define REGISTER 0x00
 #define BAUD 9600
-#define PIN_TX_ENABLE 4
+#define LED 13
+
 
 unsigned long now;
-unsigned long lastReqTs;
+unsigned long lastReqTs = 0;
 
 #define SERIAL_PORT_HARDWARE Serial1
 
@@ -27,8 +28,9 @@ void setup() {
    * Init serial port used for logging
    */
 
-  SERIAL_PORT_MONITOR.begin(9600);
-
+  SERIAL_PORT_MONITOR.begin(115200);
+  pinMode(LED, OUTPUT);
+  digitalWrite(LED, 0);
   /**
    * Init serial port used for Modbus communication
    * baud rate: BAUD
@@ -41,7 +43,7 @@ void setup() {
   /*
    * Init the Modbus master
    */
-  ModbusRtuMaster.begin(&SERIAL_PORT_HARDWARE, BAUD, PIN_TX_ENABLE);
+  ModbusRtuMaster.begin(&SERIAL_PORT_HARDWARE, BAUD,52);
 
   /**
    * Set callback function to handle responses
@@ -50,25 +52,21 @@ void setup() {
 }
 
 void loop() {
-  // Perform a request every 3 seconds
-  unsigned long now = millis();
-  if (now - lastReqTs >= 3000) {
-    //ModbusRtuMaster.readInputRegisters(SLAVE_ADDR, REGISTER, 1);
-    //ModbusRtuMaster.readHoldingRegisters(SLAVE_ADDR, REGISTER, 1);
-    Serial.println("Send command...");
-    byte cmd[] = { 0X01, 0X03, 0X00, 0X00, 0X00, 0X01, 0X84, 0X0A };
-    digitalWrite(PIN_TX_ENABLE, 1);
-    for (int i = 0; i < sizeof(cmd); i++) {
-      Serial1.write(cmd[i]);
-    }
-    digitalWrite(PIN_TX_ENABLE, 0);
-    lastReqTs = now;
-  }
+
+  //ModbusRtuMaster.readInputRegisters(SLAVE_ADDR, REGISTER, 1);
+  Serial.print("readHoldingRegisters(");
+  Serial.print(SLAVE_ADDR);
+  Serial.print(",");
+  Serial.println(REGISTER);
+  ModbusRtuMaster.readHoldingRegisters(SLAVE_ADDR, REGISTER, 1);
 
   ModbusRtuMaster.process();
+  //SLAVE_ADDR++;
+  delay(5000);
 }
 
 byte onResponse(byte unitAddr, byte function, size_t len, byte *data) {
+  digitalWrite(LED, 1);
   SERIAL_PORT_MONITOR.print("Response from ");
   SERIAL_PORT_MONITOR.println(unitAddr);
   SERIAL_PORT_MONITOR.println(len);
@@ -78,4 +76,5 @@ byte onResponse(byte unitAddr, byte function, size_t len, byte *data) {
     SERIAL_PORT_MONITOR.print(" ");
   }
   SERIAL_PORT_MONITOR.println("\n");
+  digitalWrite(LED, 0);
 }
