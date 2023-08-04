@@ -2,7 +2,6 @@
 #include <EthernetClient.h>
 #include <LiquidCrystal_I2C.h>  // Biblioteca utilizada para fazer a comunicação com o display 20x4
 #include <EEPROM.h>
-#include <avr/wdt.h>  // Include the ATmel library
 #include <SPI.h>
 #include <DS1302.h>  //RTC
 #include <Wire.h>    // Biblioteca utilizada para fazer a comunicação com o I2C
@@ -17,7 +16,6 @@
 #define STATUS_COL 13
 #define SDCARD_SS_PIN 4
 #define MAX_SENSORS 128
-#define BOUNDRATE_SERIAL 115200
 #define CE 2
 #define IO 4
 #define SCLK 5
@@ -35,7 +33,7 @@ DS1302 Rtc(CE, IO, SCLK);
 
 
 void setup() {
-  String version = "SMART-BUILDING V 1.0.0";
+  String version = "MULTIBUS V1.0.0";
   Serial.begin(BOUNDRATE_SERIAL);
   Serial.println();
   Serial.print(version);
@@ -48,9 +46,11 @@ void setup() {
   lcd.backlight();  // Serve para ligar a luz do display
   lcd.clear();      // Serve para limpar a tela do display
 
-  lcd.setCursor(0, 1);  // Coloca o cursor do display na coluna 1 e linha 1
+  lcd.setCursor(0, 0);  // Coloca o cursor do display na coluna 1 e linha 1
   lcd.print(version);
+  delay(1000);
 
+  lcd.clear();      // Serve para limpar a tela do display
   lcd.setCursor(0, 0);      // Coloca o cursor do display na coluna 1 e linha 1
   lcd.print("Booting...");  // Comando de saída com a mensagem que deve aparecer na coluna 2 e linha 1.
 
@@ -195,6 +195,7 @@ void ProcessChannelRead() {
   Serial.println(", processChannelRead");
   for (int i = 0; i < nSensors; i++) {
     if (sensors[i].channelType == I2C) {
+      Serial.println(sensors[i].channelAddr);
       Wire.beginTransmission(sensors[i].channelAddr);
       Wire.write(sensors[i].sensorType);
       Wire.endTransmission();
@@ -303,17 +304,12 @@ void reboot() {
   lcd.clear();          // Serve para limpar a tela do display
   lcd.setCursor(0, 0);  // Coloca o cursor do display na coluna 1 e linha 1
   lcd.print("Rebooting...");
-  delay(1000);
-  wdt_disable();        // Deactivates the function while configuring the time in which it will be reset
-  wdt_enable(WDTO_2S);  // We set the timer to restart in 2s
-  while (true) {
-    delay(1);
-  }
+  wd_reboot();
 }
 
 
 void logMsg(String msg) {
   lcd.setCursor(STATUS_COL, 0);
-  lcd.print(msg.substring(1, 3));
+  lcd.print(msg.substring(0, 3));
   Serial.println(msg);
 }
