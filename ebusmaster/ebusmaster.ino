@@ -1,21 +1,28 @@
+//E-BUSMASTER
+
 #include <Ethernet.h>
 #include <EthernetClient.h>
 #include <LiquidCrystal_I2C.h>  // Biblioteca utilizada para fazer a comunicação com o display 20x4
 #include <EEPROM.h>
 #include <SPI.h>
-#include <DS1302.h>  //RTC
-#include <Wire.h>    // Biblioteca utilizada para fazer a comunicação com o I2C
-#include <smart-building.h>
+#include <RtcDS1302.h>
+#include <Wire.h>  // Biblioteca utilizada para fazer a comunicação com o I2C
+#include <ebusmaster.h>
 #include <SD.h>
 #include <NtpClientLib.h>
+#include <SoftwareSerial.h>
+#include <ModbusRTUMaster.h>
+#include <avr/wdt.h>  // Include the ATmel library
 
-#define COLS 16       // Serve para definir o numero de colunas do display utilizado
-#define ROWS 2        // Serve para definir o numero de linhas do display utilizado
-#define LCDADDR 0x27  // Módulo I2C para Display LCD.
-#define LED_ERR 13
+
+#define COLS 16  // Serve para definir o numero de colunas do display utilizado
+#define ROWS 2   // Serve para definir o numero de linhas do display utilizado
 #define STATUS_COL 13
+#define LCDADDR 0x27  // Módulo I2C para Display LCD.
+
+#define LED_ERR 13
 #define SDCARD_SS_PIN 4
-#define MAX_SENSORS 128
+#define MAX_SENSORS 64
 #define CE 2
 #define IO 4
 #define SCLK 5
@@ -29,19 +36,16 @@ byte MACAddress[8];
 
 File myFile;
 
-DS1302 Rtc(CE, IO, SCLK);
+ThreeWire myWire(IO, SCLK, CE);  // IO, SCLK, CE
+RtcDS1302<ThreeWire> Rtc(myWire);
 
+SoftwareSerial mySerial(RXPIN, TXPIN);
+ModbusRTUMaster modbus(mySerial);  // serial port, driver enable pin for rs-485 (optional)
 
 void setup() {
-  String version = "MULTIBUS V1.0.0";
-  Serial.begin(BOUNDRATE_SERIAL);
-  Serial.println();
-  Serial.print(version);
-  Serial.print(__DATE__);
-  Serial.print(__TIME__);
-  Serial.println();
+  splash();
 
-  SetupMAC(false);
+  setupMAC(false);
   lcd.init();       // Serve para iniciar a comunicação com o display já conectado
   lcd.backlight();  // Serve para ligar a luz do display
   lcd.clear();      // Serve para limpar a tela do display
@@ -50,7 +54,7 @@ void setup() {
   lcd.print(version);
   delay(1000);
 
-  lcd.clear();      // Serve para limpar a tela do display
+  lcd.clear();              // Serve para limpar a tela do display
   lcd.setCursor(0, 0);      // Coloca o cursor do display na coluna 1 e linha 1
   lcd.print("Booting...");  // Comando de saída com a mensagem que deve aparecer na coluna 2 e linha 1.
 
@@ -96,14 +100,22 @@ void setup() {
     reboot();
   }
   Serial.println(NTP.getTimeDateString());
+  time_t t = NTP.getTime();
+  char buff[32];
+  sprintf(buff, "%02d.%02d.%02d %02d:%02d:%02d", day(t), month(t), year(t), hour(t), minute(t), second(t));
+  Serial.println(buff);
 
   logMsg("S04 - Setup RTC");
-  Rtc.writeProtect(false);
-  Rtc.halt(false);
+  Rtc.SetIsWriteProtected(false);
+  Rtc.SetIsRunning(true);
   time_t now = NTP.getTime();
-  Time t(year(now), month(now), day(now), hour(now), minute(now), second(now), dayOfWeek(now));
-  Rtc.time(t);
-  Time rtc = Rtc.time();
+  Rtc.SetDateTime(RtcDateTime(now));
+  //RtcDateTime rtc = Rtc.GetDateTime();
+  time_t rtc = Rtc.GetDateTime().TotalSeconds();
+  //char buff[32];
+  sprintf(buff, "%02d.%02d.%02d %02d:%02d:%02d", day(rtc), month(rtc), year(rtc), hour(rtc), minute(rtc), second(rtc));
+  Serial.println(buff);
+
 
   logMsg("S05 - SD Card setup");
   if (!SD.begin(SDCARD_SS_PIN)) {
@@ -119,7 +131,7 @@ void setup() {
   }
 
   char inputChar = myFile.read();  //get one byte from file
-  String data = "";
+  String field = "";
   while (myFile.available()) {
     byte column = 0;
     byte pt = 0;
@@ -128,29 +140,50 @@ void setup() {
         switch (column) {
           case 0:
             {
-              sensors[nSensors].channelType = findBusTypeStr(data);
+              sensors[nSensors].token = field;
               break;
             }
           case 1:
             {
-              sensors[nSensors].channelAddr = data.toInt();
+              sensors[nSensors].variable = field;
               break;
             }
           case 2:
             {
-              sensors[nSensors].sensorType = findSensorTypeStr(data);
+              sensors[nSensors].unit = field;
               break;
             }
+
           case 3:
             {
-              sensors[nSensors].dataLength = data.toInt();
+              sensors[nSensors].calcType = findCalcTypeStr(field);
+              break;
+            }
+          case 4:
+            {
+              sensors[nSensors].channelType = findBusTypeStr(field);
+              break;
+            }
+          case 5:
+            {
+              sensors[nSensors].channelAddr = field.toInt();
+              break;
+            }
+          case 6:
+            {
+              sensors[nSensors].sensorType = findSensorTypeStr(field);
+              break;
+            }
+          case 7:
+            {
+              sensors[nSensors].decimalFix = field.toInt();
               break;
             }
         }
         column++;
-        data = "";
+        field = "";
       } else {
-        data += inputChar;
+        field += inputChar;
       }
       bool breakLine = (inputChar == '\n');
       if (myFile.available()) {
@@ -174,15 +207,15 @@ void setup() {
 int oneminute = 0;
 void loop() {
   char buff[32];
-  Time rtc = Rtc.time();
+  time_t rtc = Rtc.GetDateTime().Ntp32Time();
   if (now != 0) {
     if (oneminute == 0) {
       Serial.println();
-      sprintf(buff, "%02d.%02d.%02d %02d:%02d:%02d", rtc.date, rtc.mon, rtc.yr, rtc.hr, rtc.min, rtc.sec);
+      sprintf(buff, "%02d.%02d.%02d %02d:%02d:%02d", day(rtc), month(rtc), year(rtc), hour(rtc), minute(rtc), second(rtc));
       Serial.print(buff);
       ProcessChannelRead();
     }
-    sprintf(buff, "%02d:%02d:%02d", rtc.hr, rtc.min, rtc.sec);
+    sprintf(buff, "%02d:%02d:%02d", hour(rtc), minute(rtc), second(rtc));
     lcd.setCursor(0, 1);
     lcd.print(buff);
     Serial.print(".");
@@ -194,34 +227,64 @@ void loop() {
 void ProcessChannelRead() {
   Serial.println(", processChannelRead");
   for (int i = 0; i < nSensors; i++) {
-    if (sensors[i].channelType == I2C) {
-      Serial.println(sensors[i].channelAddr);
-      Wire.beginTransmission(sensors[i].channelAddr);
-      Wire.write(sensors[i].sensorType);
-      Wire.endTransmission();
-      delay(100);
-      Wire.requestFrom((int)sensors[i].channelAddr, sensors[i].dataLength);
-      int timeOut = 0;
-      while (Wire.available() == 0 && timeOut++ < 100) {
+    switch (sensors[i].channelType) {
+      case I2C:
+        Wire.beginTransmission(sensors[i].channelAddr);
+        Wire.write(sensors[i].sensorType);
+        Wire.endTransmission();
         delay(100);
-      }
-      if (Wire.available()) {
-        Serial.println("Receiving from Slave");
-        byte buff[sensors[i].dataLength];
-        for (int i = 0; i < sensors[i].dataLength; i++) {
-          buff[i] = Wire.read();
+        Wire.requestFrom((int)sensors[i].channelAddr, sizeof(sensors[i].lastValue));
+        int timeOut = 0;
+        while (Wire.available() == 0 && timeOut++ < 100) {
+          delay(100);
         }
-        float data = *((float *)&buff[0]);
-        Serial.println(data, 10);
-      }
+        if (Wire.available()) {
+          Serial.println("Receiving from Slave");
+          byte buff[sizeof(sensors[i].lastValue)];
+          for (int i = 0; i < sizeof(sensors[i].lastValue); i++) {
+            buff[i] = Wire.read();
+          }
+          float data = *((float *)&buff[0]);
+          if (sensors[i].decimalFix != 0) {
+            data = data * pow(10, sensors[i].decimalFix);
+          }
+          sensors[i].lastValue = data;
+        }
+        break;
+      case RS485:
+        if (modbus.writeSingleHoldingRegister(sensors[i].channelAddr, sensors[i].registerAddr, sensors[i].sensorType)) {
+          delay(1000);
+          uint16_t data;
+          if (modbus.readHoldingRegisters(sensors[i].channelAddr, sensors[i].registerAddr, data, 1)) {
+            sensors[i].lastTime = Rtc.GetDateTime().Ntp32Time();
+            sensors[i].lastValue = data;
+            if (sensors[i].decimalFix != 0) {
+              sensors[i].lastValue = sensors[i].lastValue * pow(10, sensors[i].decimalFix);
+            }
+            bool saved = IOTSendTagoIO(sensors[i].token, sensors[i].variable, sensors[i].lastTime, sensors[i].lastValue, sensors[i].unit);
+          };
+        }
+        break;
     }
   }
 }
 
-unsigned long lastConnectionTime = 0;  // last time you connected to the server, in milliseconds
+void logFile(String token, String variable, time_t time, float value, String unit, bool saved) {
+  File logFile;
+  String fileName = dateISO8601(Rtc.GetDateTime().Ntp32Time()) + ".LOG";
+  logFile = SD.open(fileName, FILE_WRITE);
+  if (logFile) {
+    logFile.seek(EOF);
+    String record = token + "," + variable + "," + timestampISO8601(time) + "," + String(value) + "," + String(saved);
+    logFile.println(record);
+    logFile.close();
+  }
+}
+
+//unsigned long lastConnectionTime = 0;  // last time you connected to the server, in milliseconds
 
 // this method makes a HTTP connection to the server:
-void IOTSendTagoIO(String device_token, String variable, String value) {
+bool IOTSendTagoIO(String device_token, String variable, time_t time, float value, String unit) {
   char server[] = "api.tago.io";
   // close any connection before send a new request.
   // This will free the socket on the WiFi shield
@@ -229,7 +292,13 @@ void IOTSendTagoIO(String device_token, String variable, String value) {
 
   Serial.println("\nStarting connection to server...");
   // if you get a connection, report back via serial:
-  String PostData = String("{\"variable\":\"") + variable + String("\", \"value\":") + String(value) + String(",\"unit\":\"C\"}");
+  //DATA-JSON
+  String json = "{";
+  json += "\"variable\":\"" + variable + "\",";
+  json += "\"value\":" + String(value) + ",";
+  json += "\"unit\":\"" + unit + "\",";
+  json += "\"timestamp\":\"" + timestampISO8601(time) + "\"}";
+
   String Dev_token = String("Device-Token: ") + String(device_token);
   if (client.connect(server, 80)) {  // we will use non-secured connnection (HTTP) for tests
     Serial.println("connected to server");
@@ -240,20 +309,33 @@ void IOTSendTagoIO(String device_token, String variable, String value) {
     client.println(Dev_token);
     client.println("Content-Type: application/json");
     client.print("Content-Length: ");
-    client.println(PostData.length());
+    client.println(json.length());
     client.println();
-    client.println(PostData);
-    // note the time that the connection was made:
-    lastConnectionTime = millis();
+    client.println(json);
+    return true;
+
   } else {
     // if you couldn't make a connection:
     Serial.println("connection failed");
+    return false;
   }
+}
+
+String dateISO8601(time_t time) {
+  char buff[32];
+  sprintf(buff, "%02d-%02d-%02d", year(time), month(time), day(time));
+  return String(buff);
+}
+
+String timestampISO8601(time_t time) {
+  char buff[32];
+  sprintf(buff, "%02d-%02d-%02dT%02d:%02d:%02d", year(time), month(time), day(time), hour(time), minute(time), second(time));
+  return String(buff);
 }
 
 byte base[6] = { 0xDE, 0xAD, 0x00, 0x00, 0x00, 0x00 };
 
-void SetupMAC(bool force) {
+void setupMAC(bool force) {
 
   // Random MAC address stored in EEPROM
   if (EEPROM.read(1) == '#' && force == false) {
@@ -282,22 +364,6 @@ String MAC2String() {
   }
   return result;
 }
-
-
-
-
-String orderDate(unsigned long t) {
-  char buff[32];
-  sprintf(buff, "%02d.%02d.%02d %02d:%02d:%02d", year(t), month(t), day(t), hour(t), minute(t), second(t));
-  return String(buff);
-}
-
-String printDate(unsigned long t) {
-  char buff[32];
-  sprintf(buff, "%02d.%02d.%02d %02d:%02d:%02d", day(t), month(t), year(t), hour(t), minute(t), second(t));
-  return String(buff);
-}
-
 
 void reboot() {
   Serial.println("Rebooting...");
