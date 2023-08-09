@@ -42,30 +42,33 @@ void setup() {
 
 void receiveEvent(int howMany) {
   // verifica se existem dados para serem lidos no barramento I2C
+  Serial.println(howMany);
   if (Wire.available()) {
     for (int i = 0; i < howMany; i++) {
-      byte sensorType = Wire.read();
-      data = readSensor(sensorType);
+      byte sensortype = Wire.read();
+      Serial.println(sensortype);
+      data = readSensor(sensortype);
       delay(100);
     }
   }
 }
 
 
-float readSensor(byte sensorType) {
+float readSensor(byte sensortype) {
   float data;
-  if (sensorType == DHT22T || sensorType == DHT11T) {
+  Serial.println(sensortype , HEX);
+  if (sensortype == DHT22T || sensortype == DHT11T) {
     byte type = DHT22;
-    if (sensorType == DHT11T) {
+    if (sensortype == DHT11T) {
       type = DHT11;
     }
     DHT dht(SensorPIN1, type);  //// Initialize DHT sensor for normal 16mhz Arduino
     dht.begin();
     data = dht.readTemperature();
     Serial.print("DT22T: ");
-  } else if (sensorType == DHT22H || sensorType == DHT11H) {
+  } else if (sensortype == DHT22H || sensortype == DHT11H) {
     byte type = DHT22;
-    if (sensorType == DHT11T) {
+    if (sensortype == DHT11T) {
       type = DHT11;
     }
     DHT dht(SensorPIN1, type);  //// Initialize DHT sensor for normal 16mhz Arduino

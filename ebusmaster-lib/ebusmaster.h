@@ -1,4 +1,4 @@
-#include <TimeLib.h>
+//E-BUSMASTER-LIB
 #include <EthernetClient.h>
 #include <avr/wdt.h>  // Include the ATmel library
 
@@ -10,6 +10,8 @@
 #define SensorPIN4_A A3
 #define BOUNDRATE_SERIAL 115200
 
+String version = "E-BUSMASTER V1.0 ";
+
 enum busType
 {
     I2C,
@@ -17,8 +19,8 @@ enum busType
     LORA,
     WIFI
 };
-
-String busTypeStr[] ={"I2C","RS485","LORA","WIFI"};
+#define NbusType 4
+String busTypeStr[NbusType] ={"I2C","RS485","LORA","WIFI"};
 
 enum sensorType
 {
@@ -29,8 +31,8 @@ enum sensorType
     QDY30A_RS485
 };
 
-String sensorTypeStr[] ={"DHT11T","DHT11H","DHT22T","DHT22H","QDY30A_RS485"};
-
+#define NsensorType 5
+String sensorTypeStr[NsensorType] ={"DHT11T","DHT11H","DHT22T","DHT22H","QDY30A_RS485"};
 
 enum calcType
 {
@@ -39,11 +41,13 @@ enum calcType
     DIFF
 };
 
-String calcTypeStr[] ={"ABS","ACCU","DIFF"};
+#define NcalcType 3
+String calcTypeStr[NcalcType] ={"ABS","ACCU","DIFF"};
 
 typedef struct
 {
-  String name;
+  String token;
+  String variable;
   String unit;
   byte calcType;
   byte channelType;
@@ -51,37 +55,38 @@ typedef struct
   byte registerAddr;
   byte sensorType;
   byte decimalFix;
-  float LastValue;
+  float lastValue;
+  unsigned long lastTime;
 } sensorData;
 
 
 byte findBusTypeStr(String type) {
-  for (int i=0;i<sizeof(busTypeStr);i++) {
-    if (type == busTypeStr[i]) {
+  for (int i=0;i<NbusType;i++) {
+    if (type.equals(busTypeStr[i])) {
       return i;
     }
-    return -1;
   }
+  return -1;
 }
 
 
 byte findSensorTypeStr(String type) {
-  for (int i=0;i<sizeof(sensorTypeStr);i++) {
-    if (type == sensorTypeStr[i]) {
+  for (int i=0;i<NsensorType;i++) {
+    if (type.equals(sensorTypeStr[i])) {
       return i;
     }
-    return -1;
   }
+  return -1;
 }
 
 
 byte findCalcTypeStr(String type) {
-  for (int i=0;i<sizeof(calcTypeStr);i++) {
-    if (type == calcTypeStr[i]) {
+  for (int i=0;i<NcalcType;i++) {
+    if (type.equals(calcTypeStr[i])) {
       return i;
     }
-    return -1;
   }
+  return -1;
 }
 
 
@@ -95,7 +100,6 @@ void wd_reboot() {
   }
 }
 
-String version = "MULT-BUS V1.0.0 ";
 
 void splash() {
   Serial.begin(BOUNDRATE_SERIAL);
