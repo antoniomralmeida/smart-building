@@ -1,6 +1,6 @@
 
-#include <TimeLib.h>       //TimeLib library is needed https://github.com/PaulStoffregen/Time
-#include <NtpClientLib.h>  //Include NtpClient library header
+#include <TimeLib.h>  //TimeLib library is needed https://github.com/PaulStoffregen/Time
+#include <NTPClient.h>
 #include <Ethernet.h>
 #include <EthernetClient.h>
 byte mac[] = {
@@ -8,6 +8,10 @@ byte mac[] = {
 };
 
 EthernetClient client;
+
+EthernetUDP ntpUDP;
+NTPClient timeClient(ntpUDP);
+
 void setup() {
   Serial.begin(115200);
 
@@ -23,23 +27,41 @@ void setup() {
   //   Daylight saving: off
   Serial.println("Setup NTP");
 
-  while (!NTP.begin("pool.ntp.org", -3, false, 1)) {
-    Serial.print(".");
+
+  timeClient.begin();
+  timeClient.setTimeOffset(-3 * 3600);
+  if (!timeClient.update()) {
+    Serial.println("Error NPT");
+    while (1)
+      ;
   }
-  if (NTP.getTime() == 0) {
-    Serial.print("Error NTP server");
-    while (1) {}
+  if (!timeClient.isTimeSet()) {
+    Serial.println("Error NPT");
+    while (1)
+      ;
+  }
+  Serial.println(timeClient.getFormattedTime());
+
+
+
+  if (client.connect("api.tago.io", 80)) {
+    Serial.println("connected");
+  } else {
+    Serial.println("error");
   }
 }
 
 void loop() {
-  //To keep time updated you need to call now() from time to time inside loop
-  //in this case getTimeDateString() implies a call to now()
-  Serial.println(NTP.getTimeDateString());
+  time_t rtc = timeClient.getEpochTime();
+  char buff[64];
+  sprintf(buff, "%02d.%02d.%02d %02d:%02d:%02d", day(rtc), month(rtc), year(rtc), timeClient.getHours(), timeClient.getMinutes(), timeClient.getSeconds());
+  Serial.println(buff);
 
-  String json = "{\"variable\":\"Temperatura\",\"value\":27.70,\"unit\":\"ºC\",\"timestamp\":\"1970-01-01T00:00:00\"}";
-  if (client.connect("api.tago.io", 80)) {
-    Serial.println("connected");
+  Serial.println(timeClient.getEpochTime() / 1000);
+/*
+  float temp = random(10000) / 100.0;
+  String json = "{\"variable\":\"Temperatura\",\"value\":" + String(temp) + ",\"unit\":\"ºC\",\"timestamp\":\"1970-01-01T00:00:00\"}";
+  if (client.availableForWrite()) {
     client.println("POST /data? HTTP/1.1");
     client.println("Host: api.tago.io");
     client.println("_ssl: false");  // for non-secured connection, use this option "_ssl: false"
@@ -50,17 +72,13 @@ void loop() {
     client.println();
     client.println(json);
     client.println();
-    delay(500);
-    while (client.available()) {
-      char c = client.read();
-      Serial.print(c);
-    }
+
   } else {
     Serial.println("error");
   }
-  client.stop();
+*/
   /*
   Device-Token: 6659e588-d073-4f28-99ff-53726c2f1045
 */
-  delay(2000);
+  delay(60000);
 }
