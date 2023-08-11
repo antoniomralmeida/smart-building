@@ -17,17 +17,64 @@
   This example code is in the public domain.
 
 */
-
+//E-BUSMASTER
+#include <TimeLib.h>
+#include <Ethernet.h>
+#include <EthernetClient.h>
+#include <LiquidCrystal_I2C.h>  // Biblioteca utilizada para fazer a comunicação com o display 20x4
+#include <EEPROM.h>
 #include <SPI.h>
+#include <RtcDS1302.h>
+#include <Wire.h>  // Biblioteca utilizada para fazer a comunicação com o I2C
+#include <ebusmaster.h>
 #include <SD.h>
+#include <NTPClient.h>
+#include <ModbusRTUMaster.h>
+#include <avr/wdt.h>  // Include the ATmel library
+
+
+#define COLS 16  // Serve para definir o numero de colunas do display utilizado
+#define ROWS 2   // Serve para definir o numero de linhas do display utilizado
+#define STATUS_COL 13
+#define LCDADDR 0x27  // Módulo I2C para Display LCD.
+#define APISERVER "api.tago.io"
+
+#define LED_ERR 13
+#define SDCARD_SS_PIN 4
+#define MAX_SENSORS 64
+#define CE 2
+#define IO 4
+#define SCLK 5
+
+sensorData sensors[MAX_SENSORS];
+byte nSensors = 0;
+
+LiquidCrystal_I2C lcd(LCDADDR, COLS, ROWS);  // Chamada da funcação LiquidCrystal para ser usada com o I2C
+EthernetClient client;
+byte MACAddress[8];
+char buff[128];
+
+
+
+ThreeWire myWire(IO, SCLK, CE);  // IO, SCLK, CE
+RtcDS1302<ThreeWire> Rtc(myWire);
+
+//SoftwareSerial mySerial(RXPIN, TXPIN);
+
+ModbusRTUMaster modbus(Serial1);  // serial port, driver enable pin for rs-485 (optional)
+
+EthernetUDP ntpUDP;
+NTPClient timeClient(ntpUDP);
+
+File tmpFile;
 
 File myFile;
 
 void setup() {
   // Open serial communications and wait for port to open:
-  Serial.begin(9600);
+  Serial.begin(115200);
   while (!Serial) {
-    ; // wait for serial port to connect. Needed for native USB port only
+    ;  // wait for serial port to connect. Needed for native USB port only
   }
 
 
@@ -35,10 +82,13 @@ void setup() {
 
   if (!SD.begin(4)) {
     Serial.println("initialization failed!");
-    while (1);
+    while (1)
+      ;
   }
   Serial.println("initialization done.");
+}
 
+void loop() {
   // open the file. note that only one file can be open at a time,
   // so you have to close this one before opening another.
   myFile = SD.open("test.txt", FILE_WRITE);
@@ -46,6 +96,7 @@ void setup() {
   // if the file opened okay, write to it:
   if (myFile) {
     Serial.print("Writing to test.txt...");
+    myFile.seek(EOF);
     myFile.println("testing 1, 2, 3.");
     // close the file:
     myFile.close();
@@ -71,9 +122,3 @@ void setup() {
     Serial.println("error opening test.txt");
   }
 }
-
-void loop() {
-  // nothing happens after setup
-}
-
-
