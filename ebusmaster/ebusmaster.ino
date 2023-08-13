@@ -12,6 +12,7 @@
 #include <NTPClient.h>
 #include <ModbusRTUMaster.h>
 #include <avr/wdt.h>  // Include the ATmel library
+#include <neotimer.h>
 
 
 #define COLS 16  // Serve para definir o numero de colunas do display utilizado
@@ -31,25 +32,18 @@ sensorData sensors[MAX_SENSORS];
 byte nSensors = 0;
 
 LiquidCrystal_I2C lcd(LCDADDR, COLS, ROWS);  // Chamada da funcação LiquidCrystal para ser usada com o I2C
-EthernetClient client;
 byte MACAddress[8];
 char buff[128];
-
-
 
 ThreeWire myWire(IO, SCLK, CE);  // IO, SCLK, CE
 RtcDS1302<ThreeWire> Rtc(myWire);
 
-//SoftwareSerial mySerial(RXPIN, TXPIN);
-
-ModbusRTUMaster modbus(Serial1);  // serial port, driver enable pin for rs-485 (optional)
-
 EthernetUDP ntpUDP;
 NTPClient timeClient(ntpUDP);
 
-long lastMinute;
-int lastDay;
-
+ModbusRTUMaster modbus(Serial1);     // serial port, driver enable pin for rs-485 (optional)
+Neotimer myTimer = Neotimer(60000);  // Set timer's preset to 1m
+EthernetClient client;
 
 void logMsg(String msg, bool lfile = true) {
   lcd.setCursor(STATUS_COL, 1);
@@ -64,112 +58,6 @@ void logMsg(String msg, bool lfile = true) {
       logFile.close();
     }
   }
-}
-
-
-void setup() {
-  splash();
-  modbus.begin(9600, SERIAL_8N1);  // baud rate, config (optional)
-
-  setupMAC(false);
-  lcd.init();       // Serve para iniciar a comunicação com o display já conectado
-  lcd.backlight();  // Serve para ligar a luz do display
-  lcd.clear();      // Serve para limpar a tela do display
-
-  lcd.setCursor(0, 0);  // Coloca o cursor do display na coluna 1 e linha 1
-  lcd.print(version);
-  delay(1000);
-
-  lcd.clear();              // Serve para limpar a tela do display
-  lcd.setCursor(0, 0);      // Coloca o cursor do display na coluna 1 e linha 1
-  lcd.print("Booting...");  // Comando de saída com a mensagem que deve aparecer na coluna 2 e linha 1.
-
-  logMsg("S01 - SD Card setup", false);
-  if (!SD.begin(SDCARD_SS_PIN)) {
-    logMsg("E01 - SD card initialization failed!", false);
-    reboot();
-  }
-
-  logMsg("S02 - Initialize Ethernet with DHCP");
-  lcd.setCursor(0, 1);  // Coloca o cursor do display na coluna 1 e linha 1
-  lcd.print(MAC2String());
-
-  // start the Ethernet connection:
-  if (Ethernet.begin(MACAddress) == 0) {
-    logMsg("E01 - Failed to configure Ethernet using DHCP");
-    if (Ethernet.hardwareStatus() == EthernetNoHardware) {
-      logMsg("E02 - Ethernet shield was not found.");
-
-    } else if (Ethernet.linkStatus() == LinkOFF) {
-      logMsg("E03 - Ethernet cable is not connected.");
-    }
-    reboot();
-  }
-
-  // print your local IP address:
-  logMsg("W01 - My IP: " + Ethernet.localIP());
-
-  logMsg("S03 - Setup NTP");
-  timeClient.begin();
-  timeClient.setTimeOffset(-3 * 3600);
-  if (!timeClient.forceUpdate()) {
-    logMsg("E05 - NTP Server not found!");
-    reboot();
-  }
-
-  time_t t = timeClient.getEpochTime();
-  sprintf(buff, "NTP %02d.%02d.%02d %02d:%02d:%02d", day(t), month(t), year(t), hour(t), minute(t), second(t));
-  logMsg(buff);
-  RtcDateTime compiled = RtcDateTime(__DATE__, __TIME__);
-  int savedYear = EEPROM.read(10) + 1900;
-  if (year(t) < 2023 || !timeClient.isTimeSet() || year(t) > (compiled.Year() + 10)) {
-    logMsg("E05 - NTP Date error!");
-    reboot();
-  }
-
-  logMsg("S04 - Setup RTC");
-  Rtc.SetIsWriteProtected(false);
-  Rtc.SetIsRunning(true);
-  time_t now = timeClient.getEpochTime();
-  Rtc.SetDateTime(RtcDateTime(now));
-  time_t rtc = getTime();
-  sprintf(buff, "RTC %02d.%02d.%02d %02d:%02d:%02d", day(rtc), month(rtc), year(rtc), hour(rtc), minute(rtc), second(rtc));
-  logMsg(buff);
-
-  logMsg("S06 - Read Data Setup");
-  setupSensors();
-
-  logMsg("S07 - Connect API SERVER");
-  client.setConnectionTimeout(1000000);
-  if (!client.connect(APISERVER, 80)) {
-    logMsg("E10 - API SERVER not online!");
-    reboot();
-  }
-
-  lcd.clear();                    // Serve para limpar a tela do display
-  lcd.setCursor(0, 0);            // Coloca o cursor do display na coluna 1 e linha 1
-  lcd.print(Ethernet.localIP());  // Comando de saída com a mensagem que deve aparecer na coluna 2 e linha 1.
-  Wire.begin();
-
-  lastMinute = millis() - 60000;
-  lastDay = timeClient.getDay();
-  logMsg("   Started.");
-}
-
-void loop() {
-  time_t rtc = getTime();
-  lastDay = timeClient.getDay();
-  if (millis() > (lastMinute + 60000)) {  // a cada minuto
-    lastMinute = millis();
-    sprintf(buff, "   %02d.%02d.%02d %02d:%02d:%02d Read bus...", day(rtc), month(rtc), year(rtc), hour(rtc), minute(rtc), second(rtc));
-    logMsg(buff);
-    ProcessChannelRead();
-    //ProcessTmpFiles();
-    logMsg("Wait...");
-  }
-  sprintf(buff, "%02d:%02d:%02d", hour(rtc), minute(rtc), second(rtc));
-  lcd.setCursor(0, 1);
-  lcd.print(buff);
 }
 
 void setupSensors() {
@@ -282,7 +170,8 @@ void ProcessChannelRead() {
             data = data * pow(10, sensors[i].decimalFix);
           }
           sensors[i].lastValue = data;
-          msg += ", " +String(data);
+          sensors[i].lastTime = getTime();
+          msg += ", " + String(data);
           if (!IOTSendTagoIO(sensors[i].token, sensors[i].variable, sensors[i].lastTime, sensors[i].lastValue, sensors[i].unit)) {
             if (tmpFileSave(sensors[i].token, sensors[i].variable, sensors[i].lastTime, sensors[i].lastValue, sensors[i].unit)) {
               msg += ", saveData";
@@ -320,13 +209,12 @@ void ProcessChannelRead() {
 
 time_t getTime() {
   time_t time = 0;
-  while (!time) {
+  while (time == 0) {
     time = Rtc.GetDateTime().TotalSeconds();
     delay(5);
   }
   return time;
 }
-
 
 bool tmpFileSave(String token, String variable, time_t time, float value, String unit) {
   String fileName = String(random(99999999)) + ".TMP";
@@ -347,7 +235,6 @@ bool tmpFileSave(String token, String variable, time_t time, float value, String
   }
 }
 
-
 bool IOTSendTagoIO(String device_token, String variable, time_t time, float value, String unit) {
   //DATA-JSON
   String json = "{";
@@ -356,6 +243,9 @@ bool IOTSendTagoIO(String device_token, String variable, time_t time, float valu
   json += "\"unit\":\"" + unit + "\",";
   json += "\"timestamp\":\"" + timestampISO8601(time) + "\"}";
   String Dev_token = String("Device-Token: ") + String(device_token);
+  if (!client.connected()) {
+    client.connect(APISERVER, 80);
+  }
   if (client.connected()) {
     // Make a HTTP request:
     client.println("POST /data? HTTP/1.1");
@@ -375,11 +265,11 @@ bool IOTSendTagoIO(String device_token, String variable, time_t time, float valu
       client.read();
       ok = true;
     }
+    client.flush();
     return ok;
 
   } else {
     // if you couldn't make a connection:
-    client.connect(APISERVER, 80);
     return false;
   }
 }
@@ -394,11 +284,9 @@ String timestampISO8601(time_t time) {
   return String(buff);
 }
 
-byte base[6] = { 0xDE, 0xAD, 0x00, 0x00, 0x00, 0x00 };
-
 void setupMAC(bool force) {
-
   // Random MAC address stored in EEPROM
+  byte base[6] = { 0xDE, 0xAD, 0x00, 0x00, 0x00, 0x00 };
   if (EEPROM.read(1) == '#' && force == false) {
     for (int i = 2; i < 6; i++) {
       base[i] = EEPROM.read(i);
@@ -432,4 +320,153 @@ void reboot() {
   lcd.setCursor(0, 0);  // Coloca o cursor do display na coluna 1 e linha 1
   lcd.print("Rebooting...");
   wd_reboot();
+}
+
+String IpAddress2String(const IPAddress &ipAddress) {
+  return String(ipAddress[0]) + String(".") + String(ipAddress[1]) + String(".") + String(ipAddress[2]) + String(".") + String(ipAddress[3]);
+}
+
+void setup() {
+  splash();
+  modbus.begin(9600, SERIAL_8N1);  // baud rate, config (optional)
+
+  setupMAC(false);
+  lcd.init();       // Serve para iniciar a comunicação com o display já conectado
+  lcd.backlight();  // Serve para ligar a luz do display
+  lcd.clear();      // Serve para limpar a tela do display
+
+  lcd.setCursor(0, 0);  // Coloca o cursor do display na coluna 1 e linha 1
+  lcd.print(version);
+  delay(1000);
+
+  lcd.clear();              // Serve para limpar a tela do display
+  lcd.setCursor(0, 0);      // Coloca o cursor do display na coluna 1 e linha 1
+  lcd.print("Booting...");  // Comando de saída com a mensagem que deve aparecer na coluna 2 e linha 1.
+
+  logMsg("S01 - SD Card setup", false);
+  if (!SD.begin(SDCARD_SS_PIN)) {
+    logMsg("E01 - SD card initialization failed!", false);
+    reboot();
+  }
+
+  logMsg("S02 - Initialize Ethernet with DHCP");
+  lcd.setCursor(0, 1);  // Coloca o cursor do display na coluna 1 e linha 1
+  lcd.print(MAC2String());
+
+  // start the Ethernet connection:
+  if (Ethernet.begin(MACAddress) == 0) {
+    logMsg("E01 - Failed to configure Ethernet using DHCP");
+    if (Ethernet.hardwareStatus() == EthernetNoHardware) {
+      logMsg("E02 - Ethernet shield was not found.");
+
+    } else if (Ethernet.linkStatus() == LinkOFF) {
+      logMsg("E03 - Ethernet cable is not connected.");
+    }
+    reboot();
+  }
+  // print your local IP address:
+  logMsg("W01 - My IP: " + IpAddress2String(Ethernet.localIP()));
+
+  logMsg("S03 - Setup NTP");
+  timeClient.begin();
+  timeClient.setTimeOffset(-3 * 3600);
+  if (!timeClient.forceUpdate()) {
+    logMsg("E05 - NTP Server not found!");
+    reboot();
+  }
+
+  time_t t = timeClient.getEpochTime();
+  sprintf(buff, "NTP %02d.%02d.%02d %02d:%02d:%02d", day(t), month(t), year(t), hour(t), minute(t), second(t));
+  logMsg(buff);
+  RtcDateTime compiled = RtcDateTime(__DATE__, __TIME__);
+  int savedYear = EEPROM.read(10) + 1900;
+  if (year(t) < 2023 || !timeClient.isTimeSet() || year(t) > (compiled.Year() + 10)) {
+    logMsg("E05 - NTP Date error!");
+    reboot();
+  }
+
+  logMsg("S04 - Setup RTC");
+  Rtc.SetIsWriteProtected(false);
+  Rtc.SetIsRunning(true);
+  time_t now = timeClient.getEpochTime();
+  Rtc.SetDateTime(RtcDateTime(now));
+  time_t rtc = getTime();
+  sprintf(buff, "RTC %02d.%02d.%02d %02d:%02d:%02d", day(rtc), month(rtc), year(rtc), hour(rtc), minute(rtc), second(rtc));
+  logMsg(buff);
+
+  logMsg("S06 - Read Data Setup");
+  setupSensors();
+
+  logMsg("S07 - Connect API SERVER");
+  client.setConnectionTimeout(1000);
+  if (!client.connect(APISERVER, 80)) {
+    logMsg("E10 - API SERVER not online!");
+    reboot();
+  }
+
+  lcd.clear();                    // Serve para limpar a tela do display
+  lcd.setCursor(0, 0);            // Coloca o cursor do display na coluna 1 e linha 1
+  lcd.print(Ethernet.localIP());  // Comando de saída com a mensagem que deve aparecer na coluna 2 e linha 1.
+  Wire.begin();
+  myTimer.start();
+  logMsg("   Started.");
+  run();
+}
+
+void run() {
+  time_t rtc = getTime();
+  sprintf(buff, "   %02d.%02d.%02d %02d:%02d:%02d Read bus...", day(rtc), month(rtc), year(rtc), hour(rtc), minute(rtc), second(rtc));
+  logMsg(buff);
+  ProcessChannelRead();
+  ProcessTmpFiles();
+  logMsg("Wait...");
+}
+
+void ProcessTmpFiles() {
+  File dir = SD.open("/");
+  while (true) {
+    File entry = dir.openNextFile();
+    if (!entry) {
+      break;
+    }
+    String name = String(entry.name());
+    if (name.substring(name.length() - 3, name.length()) == "TMP") {
+      String msg = "TMP " + name;
+      bool error = false;
+      File tmp = SD.open(name, FILE_READ);
+      if (tmp) {
+        while (tmp.available()) {
+          dataFileType data;
+          if (tmp.readBytes((byte *)&data, sizeof(data)) == sizeof(data)) {
+            bool sended = IOTSendTagoIO(data.token, data.variable, data.lastTime, data.lastValue, data.unit);
+            if (sended) {
+              msg += ".";
+            } else {
+              msg += "X";
+            }
+            error = error | !sended;
+          };
+        }
+        tmp.close();
+        if (!error) {
+          msg += " ok";
+          SD.remove(name);
+        } else {
+          msg += " errorSend";
+        }
+        logMsg(msg);
+      }
+    }
+  }
+  dir.close();
+}
+
+void loop() {
+  if (myTimer.repeat()) {
+    run();
+  }
+  time_t rtc = getTime();
+  sprintf(buff, "%02d:%02d:%02d", hour(rtc), minute(rtc), second(rtc));
+  lcd.setCursor(0, 1);
+  lcd.print(buff);
 }
