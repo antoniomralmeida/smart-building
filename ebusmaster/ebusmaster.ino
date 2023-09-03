@@ -24,9 +24,9 @@
 #define LED_ERR 13
 #define SDCARD_SS_PIN 4
 #define MAX_SENSORS 64
-#define CE 5
-#define IO 6
-#define SCLK 7
+#define CE 30
+#define IO 32
+#define SCLK 34
 
 sensorData sensors[MAX_SENSORS];
 byte nSensors = 0;

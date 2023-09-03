@@ -21,6 +21,7 @@ void setup() {
 }
 
 void loop() {
+  /*
   if (modbus.writeSingleHoldingRegister(1, 0, 0x01)) {
     Serial.println("reading...");
     delay(1000);
@@ -29,6 +30,19 @@ void loop() {
       Serial.println(holdingRegisters[0]);
     };
 
+  } */
+
+  Serial.println("Reading req_QDY30A");
+  byte req_QDY30A[] = { 0x01, 0x03, 0x00, 0x01, 0x840A };
+  byte buffer[sizeof(req_QDY30A)];
+  mySerial.write((byte *)&req_QDY30A, sizeof(req_QDY30A));
+  delay(500);
+  for (int i=0;i<sizeof(req_QDY30A);i++) {
+    if (mySerial.available()) {
+      buffer[i] = mySerial.read();
+      Serial.print(buffer[i], HEX);
+    }
   } 
+
   delay(5000);
 }

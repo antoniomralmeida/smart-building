@@ -7,13 +7,14 @@
 #include "ebusmaster.h"
 #include <SoftwareSerial.h>
 #include <ModbusRTUSlave.h>
+#include <NewPing.h>
 
 
 // endereco do modulo slave que pode ser um valor de 0 a 255
 byte myAdress;
 
 float data;
-SoftwareSerial mySerial(RXPIN, TXPIN);
+SoftwareSerial mySerial(SERIALX4_RX, SERIALX4_TX);
 ModbusRTUSlave modbus(mySerial); // serial port, driver enable pin for rs-485 (optional)
 uint16_t holdingRegisters[1];
 
@@ -42,11 +43,9 @@ void setup() {
 
 void receiveEvent(int howMany) {
   // verifica se existem dados para serem lidos no barramento I2C
-  Serial.println(howMany);
   if (Wire.available()) {
     for (int i = 0; i < howMany; i++) {
       byte sensortype = Wire.read();
-      Serial.println(sensortype);
       data = readSensor(sensortype);
       delay(100);
     }
@@ -55,14 +54,14 @@ void receiveEvent(int howMany) {
 
 
 float readSensor(byte sensortype) {
-  float data;
+  float data = NAN;
   Serial.println(sensortype , HEX);
   if (sensortype == DHT22T || sensortype == DHT11T) {
     byte type = DHT22;
     if (sensortype == DHT11T) {
       type = DHT11;
     }
-    DHT dht(SensorPIN1, type);  //// Initialize DHT sensor for normal 16mhz Arduino
+    DHT dht(SENSOR_D1, type);  //// Initialize DHT sensor for normal 16mhz Arduino
     dht.begin();
     data = dht.readTemperature();
     Serial.print("DT22T: ");
@@ -71,13 +70,20 @@ float readSensor(byte sensortype) {
     if (sensortype == DHT11T) {
       type = DHT11;
     }
-    DHT dht(SensorPIN1, type);  //// Initialize DHT sensor for normal 16mhz Arduino
+    DHT dht(SENSOR_D1, type);  //// Initialize DHT sensor for normal 16mhz Arduino
     dht.begin();
     data = dht.readHumidity();
     Serial.print("DT22H: ");
-  } else {
+  } else if (sensortype == JSN_SR04M) {
+    NewPing sonar(SENSOR_D1, SENSOR_D2, MAX_DISTANCE); 
+    long dist = sonar.ping_cm();
+    if (dist>0) {
+      data = dist;
+    }
+  }
+  else {
     Serial.println("Sensor unknow!");
-    return NAN;
+    return data;
   }
   Serial.println(data);
   digitalWrite(LED_BUILTIN, HIGH);  // turn the LED on (HIGH is the voltage level)
