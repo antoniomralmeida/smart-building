@@ -1,13 +1,19 @@
 //E-BUSMASTER-LIB
 #include <EthernetClient.h>
 #include <avr/wdt.h>  // Include the ATmel library
+	
+#define SERIALX4_RX 6
+#define SERIALX4_TX 7
+#define SERIALX5_RX 8
+#define SERIALX5_TX 9
 
-#define RXPIN  10
-#define TXPIN  11
-#define SensorPIN1 12
-#define SensorPIN2 13
-#define SensorPIN3_A A2
-#define SensorPIN4_A A3
+#define SENSOR_D1 10
+#define SENSOR_D2 11
+#define SENSOR_D3 12
+#define SENSOR_D4 13
+#define SENSOR_A1 A2
+#define SENSOR_A2 A3
+
 #define BOUNDRATE_SERIAL 115200
 
 String version = "E-BUSMASTER V1.0 ";
@@ -28,11 +34,12 @@ enum sensorType
     DHT11H,
     DHT22T,
     DHT22H,
-    QDY30A_RS485
+    QDY30A_RS485, //Sensor de nivel (presão)
+    JSN_SR04M //Módulo sensor ultrassonico Water Proof
 };
 
-#define NsensorType 5
-String sensorTypeStr[NsensorType] ={"DHT11T","DHT11H","DHT22T","DHT22H","QDY30A_RS485"};
+#define NsensorType 6
+String sensorTypeStr[NsensorType] ={"DHT11T","DHT11H","DHT22T","DHT22H","QDY30A_RS485", "JSN_SR04T"};
 
 enum calcType
 {
@@ -50,7 +57,7 @@ typedef struct
   String variable;
   String unit;
   byte calcType;
-  byte channelType;
+  byte busType;
   byte channelAddr;
   byte registerAddr;
   byte sensorType;
@@ -58,6 +65,19 @@ typedef struct
   float lastValue;
   unsigned long lastTime;
 } sensorData;
+
+
+typedef struct
+{
+  char token[38];
+  char variable[16];
+  char unit[16];
+  float lastValue;
+  unsigned long lastTime;
+} dataFileType;
+
+
+
 
 
 byte findBusTypeStr(String type) {

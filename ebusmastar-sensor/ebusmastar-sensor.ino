@@ -7,7 +7,7 @@
 #include "ebusmaster.h"
 #include <SoftwareSerial.h>
 #include <ModbusRTUSlave.h>
-#include <NewPing.h>
+#include <JSNSR04T.h>
 
 
 // endereco do modulo slave que pode ser um valor de 0 a 255
@@ -75,11 +75,8 @@ float readSensor(byte sensortype) {
     data = dht.readHumidity();
     Serial.print("DT22H: ");
   } else if (sensortype == JSN_SR04M) {
-    NewPing sonar(SENSOR_D1, SENSOR_D2, MAX_DISTANCE); 
-    long dist = sonar.ping_cm();
-    if (dist>0) {
-      data = dist;
-    }
+    JSNSR04T ultrassom = JSNSR04T(SENSOR_D1,SENSOR_D2); 
+    data = ultrassom.getDistance();
   }
   else {
     Serial.println("Sensor unknow!");
