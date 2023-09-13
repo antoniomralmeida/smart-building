@@ -17,7 +17,7 @@
  * GND        ----- GND				----- GND			----- GND					----- GND			----- GND			      ----- GND                 ----- GND
  *
  */
-
+#define FREQUENCY_915
 #include "Arduino.h"
 #include "LoRa_E220.h"
 
