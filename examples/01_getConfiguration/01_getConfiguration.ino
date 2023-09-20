@@ -21,11 +21,11 @@
 #include "Arduino.h"
 #include "LoRa_E220.h"
 
-#define PIN_RX 9
-#define PIN_TX 8
-#define PIN_M0 11
-#define PIN_M1 12
-#define PIN_AX 10
+#define M0_LoRa 12
+#define M1_LoRa 11
+#define RX_LoRa 9   // Vai no TXD do módulo
+#define TX_LoRa 10  // Vai no RXD do módulo
+#define AUX_LoRa 8
 
 // ---------- esp8266 pins --------------
 //LoRa_E220 e220ttl(RX, TX, AUX, M0, M1);  // Arduino RX <-- e220 TX, Arduino TX --> e220 RX
@@ -33,8 +33,8 @@
 //LoRa_E220 e220ttl(D2, D3); // Config without connect AUX and M0 M1
 
 #include <SoftwareSerial.h>
-SoftwareSerial mySerial(PIN_RX, PIN_TX); // Arduino RX <-- e220 TX, Arduino TX --> e220 RX
-LoRa_E220 e220ttl(&mySerial, PIN_AX, PIN_M0, PIN_M1); // AUX M0 M1
+SoftwareSerial lora(RX_LoRa, TX_LoRa); // Arduino RX <-- e220 TX, Arduino TX --> e220 RX
+LoRa_E220 e220ttl(&lora, M0_LoRa, M1_LoRa, AUX_LoRa); // AUX M0 M1
 // -------------------------------------
 
 // ---------- Arduino pins --------------
@@ -73,7 +73,7 @@ void printParameters(struct Configuration configuration);
 void printModuleInformation(struct ModuleInformation moduleInformation);
 
 void setup() {
-	Serial.begin(115200);
+	Serial.begin(9600);
 
 	Serial.println();
 

@@ -20,11 +20,12 @@
  */
 #include "Arduino.h"
 #include "LoRa_E220.h"
-#define PIN_RX 9
-#define PIN_TX 8
-#define PIN_M0 11
-#define PIN_M1 12
-#define PIN_AX 10
+#define M0_LoRa 12
+#define M1_LoRa 11
+#define RX_LoRa 9   // Vai no TXD do módulo
+#define TX_LoRa 10  // Vai no RXD do módulo
+#define AUX_LoRa 8
+
 
 // ---------- esp8266 pins --------------
 //LoRa_E220 e220ttl(RX, TX, AUX, M0, M1);  // Arduino RX <-- e220 TX, Arduino TX --> e220 RX
@@ -41,8 +42,8 @@
 //LoRa_E220 e220ttl(4, 5); // Config without connect AUX and M0 M1
 
 #include <SoftwareSerial.h>
-SoftwareSerial mySerial(PIN_RX, PIN_TX); // Arduino RX <-- e220 TX, Arduino TX --> e220 RX
-LoRa_E220 e220ttl(&mySerial, PIN_AX, PIN_M0, PIN_M1); // AUX M0 M1
+SoftwareSerial lora(RX_LoRa, TX_LoRa); // Arduino RX <-- e220 TX, Arduino TX --> e220 RX
+LoRa_E220 e220ttl(&lora, M0_LoRa, M1_LoRa, AUX_LoRa); // AUX M0 M1
 
 //#include <SoftwareSerial.h>
 //SoftwareSerial mySerial(4, 5); // Arduino RX <-- e220 TX, Arduino TX --> e220 RX
@@ -76,7 +77,7 @@ void printParameters(struct Configuration configuration);
 void printModuleInformation(struct ModuleInformation moduleInformation);
 
 void setup() {
-	Serial.begin(115200);
+	Serial.begin(9600);
 	while(!Serial){};
 	delay(500);
 
@@ -96,11 +97,11 @@ void setup() {
 	printParameters(configuration);
 
 //	----------------------- DEFAULT TRANSPARENT -----------------------
-	configuration.ADDL = 1;  // First part of address
-	configuration.ADDH = 57; // Second part
+	configuration.ADDL = 0;  // First part of address
+	configuration.ADDH = 0; // Second part
 
-	configuration.CHAN = 57; // Communication channel
-
+	configuration.CHAN = 16; // Communication channel
+/*
 	configuration.SPED.uartBaudRate = UART_BPS_9600; // Serial baud rate
 	configuration.SPED.airDataRate = AIR_DATA_RATE_010_24; // Air baud rate
 	configuration.SPED.uartParity = MODE_00_8N1; // Parity bit
@@ -113,6 +114,7 @@ void setup() {
 	configuration.TRANSMISSION_MODE.fixedTransmission = FT_TRANSPARENT_TRANSMISSION; // Enable repeater mode
 	configuration.TRANSMISSION_MODE.enableLBT = LBT_DISABLED; // Check interference
 	configuration.TRANSMISSION_MODE.WORPeriod = WOR_2000_011; // WOR timing
+*/
 //	----------------------- DEFAULT TRANSPARENT WITH RSSI -----------------------
 //	configuration.ADDL = 0x03;
 //	configuration.ADDH = 0x00;
