@@ -29,23 +29,14 @@ void setup() {
 
 
 
-byte data[200];
+
 
 void loop() {
 
   if (Serial.available() > 0) {
     String msg = Serial.readString();
-    for (int i = 0; i < msg.length(); i++) {
-      data[i + 3] = msg[i];
-    }
-    data[0] = 0x0;
-    data[1] = 0x1;
-    data[2] = 16;
-    for (int i = 0; i < msg.length() + 3; i++) {
-      lora.print(data[i]);
-      Serial.print(data[i], HEX);
-      Serial.print(" ");
-    }
-    Serial.println();
+    String buffer = (String)char(0) + (String)char(1) + (String)char(16) + msg;
+    lora.print(buffer);
+    Serial.println(buffer);
   }
 }
