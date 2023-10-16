@@ -29,16 +29,17 @@ void loop() {
   }
   for (int i = 0; i < 3; i++) {
     if (mySerial.available()) {
-      ret[i] = Serial2.read();
+      ret[i] = mySerial.read();
     }
   }
   if (ret[0] == cmd[0] && ret[1] == cmd[1]) {
+    Serial.print("OK"); 
     for (int i = 0; i < (ret[2] + 2); i++) {
-      ret[3 + i] = Serial2.read();
+      ret[3 + i] = mySerial.read();
     }
   } else {
     while (mySerial.available()) {
-      Serial2.read();
+      mySerial.read();
     }
   }
   for (int i = 0; i < (ret[2] + 5); i++) {
