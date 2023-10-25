@@ -6,6 +6,12 @@
 #define SERIALX4_TX 7
 #define SERIALX5_RX 8
 #define SERIALX5_TX 9
+#define LORA_AUX 36
+#define LORA_M0 38
+#define LORA_M1 40
+
+
+
 
 #define SENSOR_D1 10
 #define SENSOR_D2 11

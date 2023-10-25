@@ -13,6 +13,7 @@
 #include <ModbusRTUMaster.h>
 #include <avr/wdt.h>  // Include the ATmel library
 #include <neotimer.h>
+#include "EBYTE.h"
 
 
 #define COLS 16  // Serve para definir o numero de colunas do display utilizado
@@ -41,9 +42,17 @@ RtcDS1302<ThreeWire> Rtc(myWire);
 EthernetUDP ntpUDP;
 NTPClient timeClient(ntpUDP);
 
-ModbusRTUMaster modbus(Serial1);     // serial port, driver enable pin for rs-485 (optional)
+SoftwareSerial rs485(SERIALX4_RX, SERIALX4_TX);
+ModbusRTUMaster modbus(rs485);     // serial port, driver enable pin for rs-485 (optional)
 Neotimer myTimer = Neotimer(60000);  // Set timer's preset to 1m
 EthernetClient client;
+
+// you will need to define the pins to create the serial port
+SoftwareSerial ESerial(SERIALX5_RX, SERIALX5_TX);
+
+
+// create the transceiver object, passing in the serial and pins
+EBYTE Transceiver(&ESerial, LORA_M0, LORA_M1, LORA_AUX);
 
 void logMsg(String msg, bool lfile = true) {
   lcd.setCursor(STATUS_COL, 1);
