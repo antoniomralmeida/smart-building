@@ -14,6 +14,7 @@ func main() {
 	log.Println(PRODUCT_NAME)
 	fmt.Println(PRODUCT_NAME)
 
+<<<<<<< HEAD
 	ID := RaspBerryID()
 	LogPrint("ID: " + ID)
 
@@ -21,6 +22,9 @@ func main() {
 	LogPrint("IP: " + IP)
 
 	SetupMQTT()
+=======
+	fmt.Println(GetOutboundIP())
+>>>>>>> 78635ae (update riskv)
 
 	// Create new connection to i2c-bus on 2 line with address 0x27.
 	// Use i2cdetect utility to find device address over the i2c-bus
@@ -42,6 +46,7 @@ func main() {
 	if err != nil {
 		LogFatal(err)
 	}
+<<<<<<< HEAD
 	// Put text on 1 line of lcd-display
 	err = lcd.ShowMessage("--=! Let's rock !=--", device.SHOW_LINE_1)
 	if err != nil {
@@ -61,5 +66,17 @@ func main() {
 	if err != nil {
 		LogFatal(err)
 	}
+=======
+	/*
+		for _, a := range addrs {
+			lcd.ShowMessage(a, device.SHOW_LINE_1)
+			time.Sleep(1000)
+		}
+	*/
+	// Wait 5 secs
+	time.Sleep(5 * time.Second)
+	// Turn off the backlight and exit
+	lcd.BacklightOff()
+>>>>>>> 78635ae (update riskv)
 
 }
