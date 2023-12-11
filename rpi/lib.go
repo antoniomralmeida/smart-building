@@ -102,7 +102,7 @@ var connectLostHandler mqtt.ConnectionLostHandler = func(client mqtt.Client, err
 	fmt.Printf("Connection lost: %v", err)
 }
 
-func SetupMQTT() {
+func SetupMQTT() error {
 	var broker = "83734c7eda514823bc0bfaa4a35fa596.s2.eu.hivemq.cloud" // find the host name in the Overview of your cluster (see readme)
 	var port = 8883                                                    // find the port right under the host name, standard is 8883
 	opts := mqtt.NewClientOptions()
@@ -118,11 +118,12 @@ func SetupMQTT() {
 	client := mqtt.NewClient(opts)
 	// throw an error if the connection isn't successfull
 	if token := client.Connect(); token.Wait() && token.Error() != nil {
-		LogFatal(token.Error())
+		return token.Error()
 	}
 
 	subscribe(client)
 	publish(client)
+	return nil
 
 }
 
